@@ -707,7 +707,16 @@ async function recognizeFrames(frames) {
           ...TESS_OPTIONS,
           tessedit_char_whitelist: '0123456789./,= -',
           logger: m => {
-            if (m.status === 'loading language traineddata') setSpinner('Downloading model…');
+            // Verified event sequence: a cache HIT fires 'loading language
+            // traineddata' (progress 0) then 'loading language traineddata
+            // (from cache)' almost immediately after - so on a cache hit
+            // this "Downloading" text gets overwritten within a tick and
+            // is never actually visible. On a genuine cold download, the
+            // "(from cache)" event never fires at all, so this stays
+            // shown for the real duration of the fetch - which is exactly
+            // the one case where it should.
+            if (m.status === 'loading language traineddata') setSpinner('Downloading model (first time only)…');
+            else if (m.status === 'loading language traineddata (from cache)') setSpinner('Reading…');
           }
         });
         result = gradeOne(text.trim().replace(/\n/g, ' '), i);
