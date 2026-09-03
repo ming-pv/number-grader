@@ -67,6 +67,19 @@
       position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
       display: none; flex-direction: column; align-items: center; gap: 8px;
     }
+
+    /* ── Manual capture button — the reliable primary control; automatic
+       stability-triggered capture is a bonus on top of it, not a gate ── */
+    #capture-btn {
+      position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
+      width: 60px; height: 60px; border-radius: 50%;
+      background: rgba(255,255,255,0.92); border: 3px solid rgba(0,0,0,0.35);
+      font-size: 1.5rem; line-height: 1; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+    }
+    #capture-btn:active { transform: translateX(-50%) scale(0.9); }
+    #capture-btn:disabled { opacity: 0.5; cursor: default; }
     .spinner-ring {
       width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.2);
       border-top-color: #fff; border-radius: 50%;
@@ -151,6 +164,7 @@
       <div class="spinner-ring"></div>
       <div class="spinner-label" id="spinner-label">Reading…</div>
     </div>
+    <button id="capture-btn" title="Capture now">📸</button>
   </div>
   <!-- error / fallback -->
   <div id="cam-error">
@@ -365,6 +379,18 @@ document.getElementById('reset-btn').addEventListener('click', () => {
   lastOcrTime = 0;
 });
 
+// Manual capture — the reliable primary control. Automatic stability
+// detection can be finicky on real handheld cameras (sensor noise,
+// auto-exposure hunting), so this button bypasses it entirely: tap it
+// once you've eyeballed the alignment yourself.
+const captureBtn = document.getElementById('capture-btn');
+captureBtn.addEventListener('click', () => {
+  if (!stream || !video.videoWidth || capturing || ocrRunning) return;
+  stableCount = 0;
+  lastOcrTime = Date.now();
+  captureAndRecognize();
+});
+
 // File inputs (fallback)
 function loadImageFile(file) {
   if (!file) return;
@@ -465,6 +491,7 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 // ─────────────────────────────────────────────
 async function captureAndRecognize() {
   capturing = true;
+  captureBtn.disabled = true;
   setStatus('Capturing…');
   let ok = false;
 
@@ -490,6 +517,7 @@ async function captureAndRecognize() {
   } finally {
     capturing = false;
     ocrRunning = false;
+    captureBtn.disabled = false;
     spinner.style.display = 'none';
     // Only overwrite the status on success — an error message set above
     // (here or inside recognizeFrames) should stay visible instead of
