@@ -209,8 +209,8 @@ const GOOD_READ_MIN = 4;    // # of non-null scores needed to play the success c
 // printed number cell is roughly square). Deriving it avoids the two
 // ever drifting out of sync again, as opposed to hardcoding both.
 const GUIDE = (() => {
-  const left = 0.10, right = 1.0;
-  const numColFrac = 4/29;              // answer:number width ratio = 25:4
+  const left = 0.10, right = 0.92;
+  const numColFrac = 1/5;               // answer:number width ratio = 4:1
   const numColW = (right-left) * numColFrac;
   const rowH = numColW;                  // number cell ≈ square
   const totalH = rowH * 5;
