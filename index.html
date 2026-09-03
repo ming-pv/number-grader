@@ -249,6 +249,7 @@ let stableCount  = 0;
 let capturing    = false;  // phase 1: grabbing snapshots (fast, ~0.5s)
 let ocrRunning   = false;  // phase 2: OCR on captured snapshots (slow, backgrounded)
 let lastOcrTime  = 0;
+let hasError     = false;  // an error message is on screen — see setError()/loop()
 let scores       = [null,null,null,null,null];
 const CAPTURE_COUNT   = 3;    // snapshots taken once alignment is stable
 const CAPTURE_GAP_MS  = 120;  // spacing between snapshots
@@ -273,9 +274,19 @@ function describeError(e) {
   try { return JSON.stringify(e); } catch(_) { return Object.prototype.toString.call(e); }
 }
 
+// Shows an error message AND marks it as "unread" so the live loop's
+// routine per-frame status updates (e.g. "hold still…") leave it alone
+// instead of clobbering it within one 250ms tick. Cleared only when the
+// next real capture attempt starts (see captureAndRecognize) — not on a
+// timer — so it stays up for as long as it takes to actually read it.
+function setError(msg) {
+  hasError = true;
+  setStatus(msg);
+}
+
 window.addEventListener('unhandledrejection', (ev) => {
   console.error('Unhandled rejection:', ev.reason);
-  setStatus('Unhandled error: ' + describeError(ev.reason));
+  setError('Unhandled error: ' + describeError(ev.reason));
 });
 window.addEventListener('error', (ev) => {
   console.error('Global error:', ev.error || ev);
@@ -500,11 +511,13 @@ async function loop() {
     // runs first so the user gets immediate feedback; recognition then
     // proceeds independently while the loop keeps ticking normally.
     captureAndRecognize();
-  } else if (!stable && !capturing && !ocrRunning) {
+  } else if (!stable && !capturing && !ocrRunning && !hasError) {
     // Show live progress so it's visible from the status text alone
     // whether phase 1 (stability/capture-trigger) is working at all —
     // stuck at a low number or resetting repeatedly means the camera
     // never reads as "stable", separate from any OCR problem in phase 2.
+    // Skipped while hasError is set, so an error message someone still
+    // needs to read doesn't get overwritten within one 250ms tick.
     setStatus(`Align sheet to the guide, hold still… (${stableCount}/${STABLE_FRAMES})`);
   }
 
@@ -520,6 +533,7 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 async function captureAndRecognize() {
   capturing = true;
   captureBtn.disabled = true;
+  hasError = false;   // a fresh attempt is a deliberate reason to clear any old error
   setStatus('Capturing…');
   let ok = false;
 
@@ -541,7 +555,7 @@ async function captureAndRecognize() {
     ok = await recognizeFrames(frames);
   } catch(e) {
     console.error('Capture failed:', e);
-    setStatus('Capture error: ' + describeError(e));
+    setError('Capture error: ' + describeError(e));
   } finally {
     capturing = false;
     ocrRunning = false;
@@ -704,7 +718,7 @@ async function recognizeFrames(frames) {
     return true;
   } catch(e) {
     console.error('recognizeFrames failed:', e);
-    setStatus('OCR error: ' + describeError(e));
+    setError('OCR error: ' + describeError(e));
     // Any chip left showing the "…" scanning state (the box that was
     // mid-read when this threw, plus everything after it) would otherwise
     // stay stuck forever since renderChip(i) never ran for it — reset
