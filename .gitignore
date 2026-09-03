@@ -1,0 +1,5 @@
+.netlify_token
+*.jpg
+*.jpeg
+*.png
+.claude/

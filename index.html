@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>POSN Grader — Problems 11–15</title>
+  <style>
+    :root {
+      --primary: #1565c0;
+      --success: #16a34a;
+      --fail:    #dc2626;
+      --warn:    #d97706;
+      --bg:      #0f172a;
+      --surface: #1e293b;
+      --border:  #334155;
+      --text:    #f1f5f9;
+      --muted:   #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; overflow: hidden; background: var(--bg); }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; color: var(--text); display: flex; flex-direction: column; }
+
+    /* ── Header ── */
+    header {
+      background: var(--primary); padding: 9px 14px;
+      display: flex; align-items: center; justify-content: space-between;
+      flex-shrink: 0;
+    }
+    header h1 { font-size: 0.95rem; font-weight: 700; }
+    .hdr-btns { display: flex; gap: 6px; }
+    .hdr-btn {
+      background: rgba(255,255,255,0.15); border: none; color: #fff;
+      font-size: 0.8rem; padding: 5px 10px; border-radius: 6px; cursor: pointer;
+    }
+    .hdr-btn:hover { background: rgba(255,255,255,0.25); }
+
+    /* ── Camera view ── */
+    #view {
+      flex: 1; position: relative; overflow: hidden; background: #000;
+      min-height: 0; /* allow flex shrink */
+      display: flex; align-items: center; justify-content: center;
+    }
+    /* Square capture frame — sized in JS to the largest square that fits
+       #view, so the on-screen guide's normalized coordinates always match
+       a simple center-square-crop of the camera's native frame. */
+    #square-frame {
+      position: relative;
+      background: #000;
+    }
+    #video {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      object-fit: cover; display: block;
+    }
+    #overlay {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      pointer-events: none;
+    }
+
+    /* ── Status badge on camera ── */
+    #status-badge {
+      position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+      background: rgba(0,0,0,0.6); color: #fff; border-radius: 20px;
+      padding: 4px 14px; font-size: 0.75rem; white-space: nowrap;
+      pointer-events: none;
+    }
+    #ocr-spinner {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+      display: none; flex-direction: column; align-items: center; gap: 8px;
+    }
+    .spinner-ring {
+      width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.2);
+      border-top-color: #fff; border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner-label { color: #fff; font-size: 0.8rem; background: rgba(0,0,0,0.5); padding: 2px 10px; border-radius: 10px; }
+
+    /* ── Camera error / permission screen ── */
+    #cam-error {
+      position: absolute; inset: 0;
+      display: none; flex-direction: column; align-items: center; justify-content: center;
+      background: #0f172a; text-align: center; gap: 14px; padding: 28px;
+    }
+    #cam-error .icon { font-size: 2.5rem; }
+    #cam-error h3 { color: #e2e8f0; font-size: 1rem; }
+    #cam-error p { font-size: 0.82rem; color: var(--muted); line-height: 1.65; max-width: 340px; }
+    #cam-error code {
+      display: block; background: #1e293b; border-radius: 6px;
+      padding: 8px 14px; font-size: 0.76rem; color: #7dd3fc;
+      font-family: monospace; max-width: 340px; word-break: break-all;
+    }
+    .err-btns { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+    .ebtn { padding: 10px 18px; border-radius: 8px; border: none; font-size: 0.88rem; font-weight: 600; cursor: pointer; }
+    .ebtn-primary { background: var(--primary); color: #fff; }
+    .ebtn-outline { background: transparent; color: var(--muted); border: 1.5px solid var(--border); }
+    #capture-input, #file-input { display: none; }
+
+    /* ── Score bar ── */
+    #score-bar {
+      flex-shrink: 0; background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 10px 10px 12px;
+    }
+    .chips { display: flex; gap: 6px; justify-content: center; margin-bottom: 8px; }
+    .chip {
+      flex: 1; max-width: 70px; display: flex; flex-direction: column;
+      align-items: center; gap: 3px;
+    }
+    .chip-lbl { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+    .chip-val {
+      width: 100%; text-align: center; font-size: 1.5rem; font-weight: 800; line-height: 1;
+      border-radius: 8px; padding: 6px 4px;
+      cursor: pointer; user-select: none;
+      transition: transform 0.1s, background 0.25s;
+      border: 2px solid transparent;
+    }
+    .chip-val:active { transform: scale(0.88); }
+    .v-idle    { background: var(--border);  color: var(--muted); }
+    .v-scan    { background: #1e3a5f; color: #60a5fa; animation: pulse 1.2s ease-in-out infinite; }
+    .v-ok      { background: #14532d; color: #4ade80; border-color: #16a34a; }
+    .v-fail    { background: #450a0a; color: #f87171; border-color: #dc2626; }
+    .v-unknown { background: #431407; color: #fb923c; border-color: #ea580c; }
+    @keyframes pulse { 0%,100%{opacity:1}50%{opacity:.4} }
+    .chip-exp { font-size: 0.58rem; color: #64748b; }
+
+    .total-row { display: flex; align-items: center; justify-content: center; gap: 8px; }
+    #total-val {
+      font-size: 1.15rem; font-weight: 800;
+      background: var(--border); color: var(--text);
+      border-radius: 8px; padding: 4px 20px; min-width: 90px; text-align: center;
+    }
+    #last-ocr { font-size: 0.62rem; color: #475569; text-align: center; margin-top: 4px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>📝 POSN Grader P11–15</h1>
+  <div class="hdr-btns">
+    <button class="hdr-btn" id="flip-btn">🔄 Flip</button>
+    <button class="hdr-btn" id="reset-btn">↺ Reset</button>
+  </div>
+</header>
+
+<div id="view">
+  <div id="square-frame">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="overlay"></canvas>
+    <div id="status-badge">Starting camera…</div>
+    <div id="ocr-spinner">
+      <div class="spinner-ring"></div>
+      <div class="spinner-label" id="spinner-label">Reading…</div>
+    </div>
+  </div>
+  <!-- error / fallback -->
+  <div id="cam-error">
+    <div class="icon">📷</div>
+    <h3 id="err-title">Live camera blocked</h3>
+    <p id="err-desc">Browsers require <strong>https://</strong> or <strong>localhost</strong> for live camera. You opened this as a local file.</p>
+    <div class="err-btns">
+      <button class="ebtn ebtn-primary" onclick="document.getElementById('capture-input').click()">📷 Take Photo</button>
+      <button class="ebtn ebtn-outline" onclick="document.getElementById('file-input').click()">📁 Choose File</button>
+    </div>
+    <p>For live preview, run once in a terminal:</p>
+    <code>python -m http.server 8000</code>
+    <p>then open <strong>http://localhost:8000</strong></p>
+    <input type="file" id="capture-input" accept="image/*" capture="environment">
+    <input type="file" id="file-input" accept="image/*">
+  </div>
+</div>
+
+<!-- Score bar -->
+<div id="score-bar">
+  <div class="chips" id="chips"></div>
+  <div class="total-row">
+    <div id="total-val">— / 5</div>
+  </div>
+  <div id="last-ocr"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+<script>
+// ─────────────────────────────────────────────
+//  Config
+// ─────────────────────────────────────────────
+const PROBLEMS = [
+  { num: 11, answer: 36,    tol: 0.1,   label: '36' },
+  { num: 12, answer: 0.45,  tol: 0.001, label: '9/20' },
+  { num: 13, answer: 48000, tol: 1,     label: '48000' },
+  { num: 14, answer: 24,    tol: 0.1,   label: '24' },
+  { num: 15, answer: 480,   tol: 0.1,   label: '480' },
+];
+const COLORS = ['#ef4444','#3b82f6','#22c55e','#f59e0b','#a855f7'];
+const LOOP_MS       = 250;  // frame check interval
+const STABLE_FRAMES = 6;    // frames stable before OCR triggers (~1.5s)
+const OCR_COOLDOWN  = 4000; // ms minimum between OCR runs
+const STABLE_THRESH = 6;    // avg pixel diff to count as stable
+const GOOD_READ_MIN = 4;    // # of non-null scores needed to play the success chime
+
+// ─────────────────────────────────────────────
+//  Alignment guide (fixed layout — the user aligns the sheet to this,
+//  so box locations no longer depend on fragile auto-detection).
+//  Coordinates are normalized [0,1] within a center-square crop of the
+//  camera frame (which is exactly what the square preview shows via
+//  object-fit:cover).
+// ─────────────────────────────────────────────
+// Horizontal extent + column ratio are the source of truth; vertical
+// extent is DERIVED so that row height == number-column width (the
+// printed number cell is roughly square). Deriving it avoids the two
+// ever drifting out of sync again, as opposed to hardcoding both.
+const GUIDE = (() => {
+  const left = 0.10, right = 0.80;
+  const numColFrac = 4/29;              // answer:number width ratio = 25:4
+  const numColW = (right-left) * numColFrac;
+  const rowH = numColW;                  // number cell ≈ square
+  const totalH = rowH * 5;
+  const vCenter = 0.5;
+  return {
+    left, right,
+    top: vCenter - totalH/2,
+    bottom: vCenter + totalH/2,
+    numColFrac,
+  };
+})();
+
+// ─────────────────────────────────────────────
+//  State
+// ─────────────────────────────────────────────
+let stream       = null;
+let facingMode   = 'environment';
+let loopTimer    = null;
+let prevSmall    = null;   // 32×32 canvas of prev frame
+let stableCount  = 0;
+let capturing    = false;  // phase 1: grabbing snapshots (fast, ~0.5s)
+let ocrRunning   = false;  // phase 2: OCR on captured snapshots (slow, backgrounded)
+let lastOcrTime  = 0;
+let scores       = [null,null,null,null,null];
+const CAPTURE_COUNT   = 3;    // snapshots taken once alignment is stable
+const CAPTURE_GAP_MS  = 120;  // spacing between snapshots
+
+const video    = document.getElementById('video');
+const overlay  = document.getElementById('overlay');
+const octx     = overlay.getContext('2d');
+const spinner  = document.getElementById('ocr-spinner');
+const statusBadge = document.getElementById('status-badge');
+const viewEl   = document.getElementById('view');
+const squareFrame = document.getElementById('square-frame');
+
+// ─────────────────────────────────────────────
+//  Score chips (build once)
+// ─────────────────────────────────────────────
+const chipsEl = document.getElementById('chips');
+PROBLEMS.forEach((p, i) => {
+  const chip = document.createElement('div');
+  chip.className = 'chip';
+  chip.innerHTML = `
+    <span class="chip-lbl">P${p.num}</span>
+    <div class="chip-val v-idle" id="chip-${i}">—</div>
+    <span class="chip-exp">${p.label}</span>
+  `;
+  chipsEl.appendChild(chip);
+  document.getElementById(`chip-${i}`).addEventListener('click', () => {
+    if (scores[i] === null) return;
+    scores[i] = scores[i] === 1 ? 0 : 1;
+    renderChip(i);
+    renderTotal();
+  });
+});
+
+// ─────────────────────────────────────────────
+//  Square frame sizing
+//  Keeps #square-frame the largest square that fits inside #view, so the
+//  guide's normalized coordinates always correspond 1:1 to the displayed
+//  square (no letterbox math needed to draw it).
+// ─────────────────────────────────────────────
+function sizeSquareFrame() {
+  const side = Math.max(50, Math.min(viewEl.clientWidth, viewEl.clientHeight));
+  squareFrame.style.width  = side + 'px';
+  squareFrame.style.height = side + 'px';
+}
+window.addEventListener('resize', sizeSquareFrame);
+sizeSquareFrame();
+
+// ─────────────────────────────────────────────
+//  Success chime (synthesized — no external audio asset)
+// ─────────────────────────────────────────────
+let audioCtx = null;
+function unlockAudio() {
+  audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+document.addEventListener('pointerdown', unlockAudio, { once: true });
+
+function playChime() {
+  try {
+    unlockAudio();
+    const now = audioCtx.currentTime;
+    [880, 1318.5].forEach((freq, i) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      const t0 = now + i * 0.11;
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.exponentialRampToValueAtTime(0.28, t0 + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.22);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(t0);
+      osc.stop(t0 + 0.24);
+    });
+  } catch(e) { console.warn('chime failed:', e); }
+}
+
+// ─────────────────────────────────────────────
+//  Camera
+// ─────────────────────────────────────────────
+async function startCamera() {
+  stopLoop();
+  try {
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode, width: { ideal: 1920 }, height: { ideal: 1440 } }
+    });
+    video.srcObject = stream;
+    await new Promise(r => video.onloadedmetadata = r);
+    video.style.display = 'block';
+    document.getElementById('cam-error').style.display = 'none';
+    sizeSquareFrame();
+    setStatus('Align sheet to the guide, hold still…');
+    startLoop();
+  } catch(err) {
+    video.style.display = 'none';
+    const errDiv = document.getElementById('cam-error');
+    errDiv.style.display = 'flex';
+    const title = document.getElementById('err-title');
+    const desc  = document.getElementById('err-desc');
+    if (err.name === 'NotAllowedError') {
+      title.textContent = 'Camera permission denied';
+      desc.innerHTML = 'Please allow camera access in your browser settings, then reload the page.';
+    } else if (err.name === 'NotFoundError') {
+      title.textContent = 'No camera found';
+      desc.innerHTML = 'No camera detected. Use the options below.';
+    } else if (location.protocol === 'file:') {
+      title.textContent = 'Live camera blocked';
+      desc.innerHTML = 'Browsers block live camera from <strong>file://</strong> URLs. Use <strong>📷 Take Photo</strong> (works on mobile!) or run a local server.';
+    } else {
+      title.textContent = 'Camera error';
+      desc.textContent = err.message;
+    }
+  }
+}
+
+document.getElementById('flip-btn').addEventListener('click', () => {
+  facingMode = facingMode === 'environment' ? 'user' : 'environment';
+  startCamera();
+});
+
+document.getElementById('reset-btn').addEventListener('click', () => {
+  scores = [null,null,null,null,null];
+  for (let i=0;i<5;i++) { const c=document.getElementById(`chip-${i}`); c.className='chip-val v-idle'; c.textContent='—'; }
+  document.getElementById('total-val').textContent = '— / 5';
+  document.getElementById('last-ocr').textContent = '';
+  stableCount = 0;
+  lastOcrTime = 0;
+});
+
+// File inputs (fallback)
+function loadImageFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const im = new Image();
+    im.onload = () => runOnce(im);
+    im.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+document.getElementById('capture-input').addEventListener('change', function(){ loadImageFile(this.files[0]); this.value=''; });
+document.getElementById('file-input').addEventListener('change', function(){ loadImageFile(this.files[0]); this.value=''; });
+
+// One-shot for photo / file fallback. Shows the same center-square-crop +
+// guide the live view would show, so what you see is what gets read.
+async function runOnce(img) {
+  document.getElementById('cam-error').style.display = 'none';
+  sizeSquareFrame();
+  overlay.width  = overlay.clientWidth;
+  overlay.height = overlay.clientHeight;
+  const side = Math.min(img.width, img.height);
+  const offX = (img.width - side) / 2, offY = (img.height - side) / 2;
+  octx.drawImage(img, offX, offY, side, side, 0, 0, overlay.width, overlay.height);
+  drawGuide(false);
+  setStatus('Running OCR…');
+  await recognizeFrames([img]);
+  drawGuide(false);
+  setStatus('Done — choose file or take another photo');
+}
+
+// ─────────────────────────────────────────────
+//  Live loop
+// ─────────────────────────────────────────────
+function startLoop() {
+  stopLoop();
+  loop();
+}
+function stopLoop() {
+  if (loopTimer) { clearTimeout(loopTimer); loopTimer = null; }
+}
+
+async function loop() {
+  if (!stream || !video.videoWidth) {
+    loopTimer = setTimeout(loop, LOOP_MS);
+    return;
+  }
+
+  // Capture frame to offscreen canvas
+  const fw = video.videoWidth, fh = video.videoHeight;
+  const fc = tmpCanvas(fw, fh);
+  fc.getContext('2d').drawImage(video, 0, 0, fw, fh);
+
+  // Stability check (compare 32×32 thumbnails)
+  const small = tmpCanvas(32, 32);
+  small.getContext('2d').drawImage(fc, 0, 0, 32, 32);
+  const diff = prevSmall ? frameDiff(small, prevSmall) : 999;
+  prevSmall = small;
+
+  if (diff < STABLE_THRESH) {
+    stableCount = Math.min(stableCount + 1, STABLE_FRAMES + 5);
+  } else {
+    stableCount = 0;
+  }
+
+  clearOverlay();
+  drawGuide(capturing || ocrRunning);
+
+  const now = Date.now();
+  const stable = stableCount >= STABLE_FRAMES;
+  const cooldownOk = now - lastOcrTime > OCR_COOLDOWN;
+
+  if (stable && cooldownOk && !capturing && !ocrRunning) {
+    lastOcrTime = Date.now();
+    stableCount = 0;
+    // Fire-and-forget: do NOT await this. Recognition is slow (several
+    // Tesseract passes); awaiting it here would freeze the live preview
+    // and stability check for the whole duration. Capture is instant and
+    // runs first so the user gets immediate feedback; recognition then
+    // proceeds independently while the loop keeps ticking normally.
+    captureAndRecognize();
+  } else if (!stable) {
+    setStatus('Align sheet to the guide, hold still…');
+  }
+
+  loopTimer = setTimeout(loop, LOOP_MS);
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ─────────────────────────────────────────────
+//  Phase 1: capture a few snapshots fast (no OCR yet)
+//  Phase 2: recognize using those snapshots, in the background
+// ─────────────────────────────────────────────
+async function captureAndRecognize() {
+  capturing = true;
+  setStatus('Capturing…');
+
+  const frames = [];
+  for (let i = 0; i < CAPTURE_COUNT; i++) {
+    const fw = video.videoWidth, fh = video.videoHeight;
+    const fc = tmpCanvas(fw, fh);
+    fc.getContext('2d').drawImage(video, 0, 0, fw, fh);
+    frames.push(fc);
+    if (i < CAPTURE_COUNT - 1) await sleep(CAPTURE_GAP_MS);
+  }
+
+  capturing = false;
+  ocrRunning = true;
+  spinner.style.display = 'flex';
+  setStatus('Reading answers…');
+
+  try {
+    await recognizeFrames(frames);
+  } finally {
+    ocrRunning = false;
+    spinner.style.display = 'none';
+    setStatus('Scanning — hold sheet steady…');
+  }
+}
+
+// ─────────────────────────────────────────────
+//  Frame diff
+// ─────────────────────────────────────────────
+function frameDiff(c1, c2) {
+  const d1 = c1.getContext('2d').getImageData(0,0,32,32).data;
+  const d2 = c2.getContext('2d').getImageData(0,0,32,32).data;
+  let s = 0;
+  for (let i=0;i<d1.length;i+=4) s += Math.abs(d1[i]-d2[i]) + Math.abs(d1[i+1]-d2[i+1]) + Math.abs(d1[i+2]-d2[i+2]);
+  return s / (32*32*3);
+}
+
+function tmpCanvas(w, h) {
+  const c = document.createElement('canvas'); c.width=w; c.height=h; return c;
+}
+
+// ─────────────────────────────────────────────
+//  Guide → crop boxes
+//  The live square preview shows a center-square crop of the camera's
+//  native (non-square) frame via object-fit:cover. Replicate that same
+//  crop here so a captured frame's answer-cell pixels line up with what
+//  the user visually aligned to the guide.
+// ─────────────────────────────────────────────
+function guideAnswerBoxes(imgW, imgH) {
+  const side = Math.min(imgW, imgH);
+  const offX = (imgW - side) / 2, offY = (imgH - side) / 2;
+  const gx0 = offX + GUIDE.left   * side, gx1 = offX + GUIDE.right  * side;
+  const gy0 = offY + GUIDE.top    * side, gy1 = offY + GUIDE.bottom * side;
+  const rowH = (gy1 - gy0) / 5;
+  const dividerX = gx0 + (gx1 - gx0) * GUIDE.numColFrac;
+  const pad = rowH * 0.06;
+
+  return Array.from({ length: 5 }, (_, i) => {
+    const y0 = gy0 + i*rowH, y1 = gy0 + (i+1)*rowH;
+    return {
+      x: dividerX + pad, y: y0 + pad,
+      w: gx1 - dividerX - pad*2, h: y1 - y0 - pad*2,
+    };
+  });
+}
+
+// ─────────────────────────────────────────────
+//  Draw overlay on top of video (or a static captured image)
+// ─────────────────────────────────────────────
+function clearOverlay() {
+  overlay.width  = overlay.clientWidth;
+  overlay.height = overlay.clientHeight;
+  octx.clearRect(0, 0, overlay.width, overlay.height);
+}
+
+// Draws the fixed guide grid + row labels + (once available) score badges.
+// Does NOT clear the canvas first — caller controls that, since the static
+// photo fallback draws an image into the same canvas right before this.
+function drawGuide(analyzing) {
+  const W = overlay.width, H = overlay.height;
+  const gx0 = GUIDE.left*W,  gx1 = GUIDE.right*W;
+  const gy0 = GUIDE.top*H,   gy1 = GUIDE.bottom*H;
+  const rowH = (gy1 - gy0) / 5;
+  const dividerX = gx0 + (gx1-gx0)*GUIDE.numColFrac;
+
+  octx.strokeStyle = analyzing ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.8)';
+  octx.lineWidth = analyzing ? 3 : 2;
+  octx.setLineDash(analyzing ? [] : [8,5]);
+  octx.strokeRect(gx0, gy0, gx1-gx0, gy1-gy0);
+  octx.beginPath(); octx.moveTo(dividerX, gy0); octx.lineTo(dividerX, gy1); octx.stroke();
+  for (let i = 1; i < 5; i++) {
+    const y = gy0 + i*rowH;
+    octx.beginPath(); octx.moveTo(gx0, y); octx.lineTo(gx1, y); octx.stroke();
+  }
+  octx.setLineDash([]);
+
+  for (let i = 0; i < 5; i++) {
+    const y0 = gy0 + i*rowH;
+    const col = COLORS[i];
+
+    const lbl = `P${PROBLEMS[i].num}`;
+    octx.font = 'bold 13px system-ui';
+    const tw = octx.measureText(lbl).width;
+    octx.fillStyle = col;
+    octx.fillRect(gx0, y0, tw+8, 19);
+    octx.fillStyle = '#fff';
+    octx.fillText(lbl, gx0+4, y0+13);
+
+    if (scores[i] !== null && !analyzing) {
+      const badge = scores[i]===1 ? '✓' : '✗';
+      const badgeCol = scores[i]===1 ? '#16a34a' : '#dc2626';
+      octx.font = 'bold 14px system-ui';
+      const bw = octx.measureText(badge).width;
+      octx.fillStyle = badgeCol;
+      octx.fillRect(gx1-bw-10, y0, bw+10, 19);
+      octx.fillStyle = '#fff';
+      octx.fillText(badge, gx1-bw-5, y0+13);
+    }
+  }
+}
+
+// ─────────────────────────────────────────────
+//  OCR — recognize against a set of pre-captured frames (phase 2).
+//  For each box, try frames in order and keep the first one that parses
+//  to a valid number; only touches a 2nd/3rd frame when the previous one
+//  failed, so the common case costs the same as reading a single frame.
+// ─────────────────────────────────────────────
+let ocrWorker = null;
+
+async function recognizeFrames(frames) {
+  try {
+    if (!ocrWorker) {
+      setSpinner('Loading OCR engine…');
+      ocrWorker = await Tesseract.createWorker('eng', 1, {
+        logger: m => {
+          if (m.status === 'loading language traineddata') setSpinner('Downloading model…');
+        }
+      });
+    }
+
+    const answerRegs = guideAnswerBoxes(frames[0].width, frames[0].height);
+    await ocrWorker.setParameters({ tessedit_char_whitelist: '0123456789./,= -' });
+
+    for (let i = 0; i < 5; i++) {
+      setSpinner(`Reading P${PROBLEMS[i].num}…`);
+      setChipScan(i);
+      let result = null;
+      for (const frame of frames) {
+        const dataURL = cropRegion(frame, answerRegs[i]);
+        const { data: { text } } = await ocrWorker.recognize(dataURL);
+        result = gradeOne(text.trim().replace(/\n/g, ' '), i);
+        if (result !== null) break;   // got a parseable number, stop trying frames
+      }
+      scores[i] = result;
+      renderChip(i);
+    }
+
+    renderTotal();
+    const goodCount = scores.filter(s => s !== null).length;
+    if (goodCount >= GOOD_READ_MIN) playChime();
+    document.getElementById('last-ocr').textContent =
+      `Last read: ${new Date().toLocaleTimeString()} (${goodCount}/5 read)`;
+  } catch(e) {
+    setStatus('OCR error: ' + e.message);
+    console.error(e);
+  }
+}
+
+function cropRegion(img, r) {
+  const UP=3, PAD=6;
+  const oc = tmpCanvas(r.w*UP+PAD*2, r.h*UP+PAD*2);
+  const ctx2 = oc.getContext('2d');
+  ctx2.fillStyle='#fff'; ctx2.fillRect(0,0,oc.width,oc.height);
+  ctx2.drawImage(img, r.x, r.y, r.w, r.h, PAD, PAD, r.w*UP, r.h*UP);
+  return oc.toDataURL('image/png');
+}
+
+// ─────────────────────────────────────────────
+//  Answer matching
+// ─────────────────────────────────────────────
+function extractNum(text) {
+  const t = text.replace(/\s/g,'');
+  const frac = t.match(/(\d+)\/(\d+)/);
+  if (frac) return +frac[1]/+frac[2];
+  const m = t.match(/-?[\d,]+(?:\.\d+)?/);
+  if (m) return parseFloat(m[0].replace(/,/g,''));
+  return null;
+}
+
+function gradeOne(text, i) {
+  const val = extractNum(text);
+  if (val === null) return null;
+  return Math.abs(val - PROBLEMS[i].answer) <= PROBLEMS[i].tol ? 1 : 0;
+}
+
+// ─────────────────────────────────────────────
+//  UI helpers
+// ─────────────────────────────────────────────
+function setStatus(msg) { statusBadge.textContent = msg; }
+function setSpinner(msg) { document.getElementById('spinner-label').textContent = msg; }
+
+function setChipScan(i) {
+  const c = document.getElementById(`chip-${i}`);
+  c.className = 'chip-val v-scan'; c.textContent = '…';
+}
+
+function renderChip(i) {
+  const c = document.getElementById(`chip-${i}`);
+  const s = scores[i];
+  if (s===1)         { c.className='chip-val v-ok';      c.textContent='1'; }
+  else if (s===0)    { c.className='chip-val v-fail';     c.textContent='0'; }
+  else               { c.className='chip-val v-unknown';  c.textContent='?'; }
+}
+
+function renderTotal() {
+  const valid = scores.filter(s=>s!==null);
+  const sum   = scores.filter(s=>s===1).length;
+  document.getElementById('total-val').textContent = `${sum} / ${valid.length}`;
+}
+
+// ─────────────────────────────────────────────
+//  Boot
+// ─────────────────────────────────────────────
+startCamera();
+</script>
+</body>
+</html>
