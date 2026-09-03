@@ -669,32 +669,33 @@ function drawGuide(analyzing) {
 //  to a valid number; only touches a 2nd/3rd frame when the previous one
 //  failed, so the common case costs the same as reading a single frame.
 // ─────────────────────────────────────────────
-let ocrWorker = null;
+// Self-hosted, same-origin copies of everything Tesseract.js needs — by
+// default it pulls the worker/core scripts from jsdelivr AND the language
+// data from tessdata.projectnaptha.com; if a network blocks either CDN,
+// or a manually-managed worker ends up in a broken state (see below),
+// recognition fails. Hosting them alongside index.html removes both
+// external dependencies.
+const TESS_OPTIONS = {
+  workerPath: 'tesseract/worker.min.js',
+  corePath:   'tesseract/tesseract-core.wasm.js',   // non-SIMD build
+  langPath:   'tesseract',
+};
 
 // Returns true on success, false on failure (caller keeps the error status
 // visible on false instead of overwriting it — see captureAndRecognize).
+//
+// Deliberately uses the static Tesseract.recognize() convenience call
+// (which spins up and tears down its own worker per call) instead of a
+// long-lived worker via createWorker()+setParameters()+recognize(). The
+// manual-worker pattern reliably left the OCR engine's internal API
+// object null on this device/browser combo — every method on it
+// (SetVariable, SetImageFile, ...) threw "Cannot read properties of
+// null", even though createWorker() itself resolved without error. The
+// static per-call method takes a small extra setup cost each time but
+// was verified to actually work where the manual pattern didn't.
 async function recognizeFrames(frames) {
   try {
-    if (!ocrWorker) {
-      setSpinner('Loading OCR engine…');
-      // Self-hosted, same-origin copies of everything Tesseract.js needs —
-      // by default it pulls the worker/core scripts from jsdelivr AND the
-      // language data from tessdata.projectnaptha.com; if a network blocks
-      // either CDN, worker init fails silently-ish ("Worker initialization
-      // failure"). Hosting them alongside index.html removes both
-      // dependencies entirely.
-      ocrWorker = await Tesseract.createWorker('eng', 1, {
-        workerPath: 'tesseract/worker.min.js',
-        corePath:   'tesseract/tesseract-core-simd.wasm.js',
-        langPath:   'tesseract',
-        logger: m => {
-          if (m.status === 'loading language traineddata') setSpinner('Downloading model…');
-        }
-      });
-    }
-
     const answerRegs = guideAnswerBoxes(frames[0].width, frames[0].height);
-    await ocrWorker.setParameters({ tessedit_char_whitelist: '0123456789./,= -' });
 
     for (let i = 0; i < 5; i++) {
       setSpinner(`Reading P${PROBLEMS[i].num}…`);
@@ -702,7 +703,13 @@ async function recognizeFrames(frames) {
       let result = null;
       for (const frame of frames) {
         const dataURL = cropRegion(frame, answerRegs[i]);
-        const { data: { text } } = await ocrWorker.recognize(dataURL);
+        const { data: { text } } = await Tesseract.recognize(dataURL, 'eng', {
+          ...TESS_OPTIONS,
+          tessedit_char_whitelist: '0123456789./,= -',
+          logger: m => {
+            if (m.status === 'loading language traineddata') setSpinner('Downloading model…');
+          }
+        });
         result = gradeOne(text.trim().replace(/\n/g, ' '), i);
         if (result !== null) break;   // got a parseable number, stop trying frames
       }
