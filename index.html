@@ -150,6 +150,7 @@
 <header>
   <h1>📝 POSN Grader P11–15</h1>
   <div class="hdr-btns">
+    <button class="hdr-btn" id="ai-btn">🤖 AI</button>
     <button class="hdr-btn" id="flip-btn">🔄 Flip</button>
     <button class="hdr-btn" id="reset-btn">↺ Reset</button>
   </div>
@@ -211,6 +212,76 @@ const OCR_COOLDOWN  = 4000; // ms minimum between OCR runs
 const STABLE_THRESH = 12;   // avg pixel diff to count as stable (loosened —
                              // 6 was too strict for real handheld sensor noise)
 const GOOD_READ_MIN = 4;    // # of non-null scores needed to play the success chime
+
+// ─────────────────────────────────────────────
+//  Optional local AI model (Ollama running on a computer you control) —
+//  see LOCAL_MODEL_SETUP.md for how to stand one up and expose it via
+//  Tailscale. Tried first when configured; falls back to Tesseract on
+//  any failure (unreachable, timeout, bad response) or when unset.
+// ─────────────────────────────────────────────
+const AI_SERVER_KEY = 'aiServerUrl';
+const AI_MODEL      = 'qwen2.5vl:3b';
+const AI_TIMEOUT_MS = 45000;   // measured ~35s/image on CPU-only hardware
+const AI_PROMPT = 'Read the handwritten number or fraction in this image. '
+  + 'There may be extra text or units next to it - ignore that. Reply with '
+  + 'ONLY the number or fraction (e.g. "36" or "9/20"), nothing else.';
+
+function getAiServerUrl() {
+  return (localStorage.getItem(AI_SERVER_KEY) || '').trim().replace(/\/$/, '');
+}
+function setAiServerUrl(url) {
+  localStorage.setItem(AI_SERVER_KEY, url.trim().replace(/\/$/, ''));
+}
+
+// Pad a crop to a square before sending it to the vision model. Verified
+// necessary by direct testing: the raw wide/short crop shape (a typical
+// answer cell is ~5:1 width:height) made the model return garbage or
+// empty output; padding to square with white margins fixed this
+// completely for the same content.
+function squarePad(source, size) {
+  size = size || 384;
+  const sw = source.width, sh = source.height;
+  const side = Math.max(sw, sh);
+  const sq = tmpCanvas(side, side);
+  const sctx = sq.getContext('2d');
+  sctx.fillStyle = '#fff';
+  sctx.fillRect(0, 0, side, side);
+  sctx.drawImage(source, (side - sw) / 2, (side - sh) / 2);
+  const out = tmpCanvas(size, size);
+  out.getContext('2d').drawImage(sq, 0, 0, size, size);
+  return out;
+}
+
+// Returns recognized text, or null if the AI server isn't configured/failed
+// (caller falls back to Tesseract in either case).
+async function recognizeWithAI(cropCanvas) {
+  const base = getAiServerUrl();
+  if (!base) return null;
+  const sq = squarePad(cropCanvas);
+  const b64 = sq.toDataURL('image/png').split(',')[1];
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
+  try {
+    const res = await fetch(base + '/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: AI_MODEL,
+        prompt: AI_PROMPT,
+        images: [b64],
+        stream: false,
+        options: { temperature: 0 },
+      }),
+      signal: controller.signal,
+    });
+    if (!res.ok) throw new Error('AI server HTTP ' + res.status);
+    const data = await res.json();
+    return (data.response || '').trim();
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 // ─────────────────────────────────────────────
 //  Alignment guide (fixed layout — the user aligns the sheet to this,
@@ -407,6 +478,19 @@ async function startCamera() {
 document.getElementById('flip-btn').addEventListener('click', () => {
   facingMode = facingMode === 'environment' ? 'user' : 'environment';
   startCamera();
+});
+
+document.getElementById('ai-btn').addEventListener('click', () => {
+  const current = getAiServerUrl();
+  const next = prompt(
+    'Local AI model server URL (see LOCAL_MODEL_SETUP.md).\n'
+    + 'Leave blank to disable and use Tesseract only.\n'
+    + 'Example: https://your-computer.your-tailnet.ts.net',
+    current
+  );
+  if (next === null) return; // cancelled
+  setAiServerUrl(next);
+  setStatus(getAiServerUrl() ? 'AI server set — will try it first' : 'AI server cleared — using Tesseract only');
 });
 
 document.getElementById('reset-btn').addEventListener('click', () => {
@@ -701,7 +785,26 @@ async function recognizeFrames(frames) {
       setSpinner(`Reading P${PROBLEMS[i].num}…`);
       setChipScan(i);
       let result = null;
+
+      // Try the local AI model first, if configured (see LOCAL_MODEL_SETUP.md).
+      // Much better at messy handwriting than Tesseract. Any failure here
+      // (server not configured, unreachable, timeout, unparseable reply)
+      // falls through to the Tesseract loop below unchanged.
+      if (getAiServerUrl()) {
+        try {
+          setSpinner(`Reading P${PROBLEMS[i].num}… (AI)`);
+          const box = answerRegs[i];
+          const crop = tmpCanvas(box.w, box.h);
+          crop.getContext('2d').drawImage(frames[0], box.x, box.y, box.w, box.h, 0, 0, box.w, box.h);
+          const text = await recognizeWithAI(crop);
+          if (text) result = gradeOne(text, i);
+        } catch(e) {
+          console.warn(`AI recognition failed for P${PROBLEMS[i].num}, falling back to Tesseract:`, describeError(e));
+        }
+      }
+
       for (const frame of frames) {
+        if (result !== null) break;   // AI already got a valid read
         const dataURL = cropRegion(frame, answerRegs[i]);
         const { data: { text } } = await Tesseract.recognize(dataURL, 'eng', {
           ...TESS_OPTIONS,
