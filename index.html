@@ -192,7 +192,7 @@
   <div id="last-ocr"></div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+<script src="tesseract/tesseract.min.js"></script>
 <script>
 // ─────────────────────────────────────────────
 //  Config
@@ -635,7 +635,16 @@ async function recognizeFrames(frames) {
   try {
     if (!ocrWorker) {
       setSpinner('Loading OCR engine…');
+      // Self-hosted, same-origin copies of everything Tesseract.js needs —
+      // by default it pulls the worker/core scripts from jsdelivr AND the
+      // language data from tessdata.projectnaptha.com; if a network blocks
+      // either CDN, worker init fails silently-ish ("Worker initialization
+      // failure"). Hosting them alongside index.html removes both
+      // dependencies entirely.
       ocrWorker = await Tesseract.createWorker('eng', 1, {
+        workerPath: 'tesseract/worker.min.js',
+        corePath:   'tesseract/tesseract-core-simd.wasm.js',
+        langPath:   'tesseract',
         logger: m => {
           if (m.status === 'loading language traineddata') setSpinner('Downloading model…');
         }
