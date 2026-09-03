@@ -253,6 +253,34 @@ let scores       = [null,null,null,null,null];
 const CAPTURE_COUNT   = 3;    // snapshots taken once alignment is stable
 const CAPTURE_GAP_MS  = 120;  // spacing between snapshots
 
+// Rejections from fetch/XHR/Worker failures are often a raw Event or
+// ProgressEvent (no .message), or a string, not a proper Error — plain
+// `e.message` silently turns those into the unhelpful string "undefined".
+// This extracts whatever's actually diagnosable from any shape of `e`.
+function describeError(e) {
+  if (e === undefined) return '(no error object — undefined)';
+  if (e === null) return '(no error object — null)';
+  if (typeof e === 'string') return e;
+  if (e instanceof Error) return `${e.name}: ${e.message}${e.stack ? '\n' + e.stack : ''}`;
+  if (e && e.message) return String(e.message);
+  if (e && e.type) {
+    // Event / ProgressEvent / ErrorEvent — e.g. a failed <script>/fetch load
+    const t = e.target;
+    const src = t && (t.src || t.currentSrc || t.href);
+    return `event "${e.type}"` + (src ? ` on ${src}` : '') +
+           (t && t.status !== undefined ? ` (HTTP ${t.status})` : '');
+  }
+  try { return JSON.stringify(e); } catch(_) { return Object.prototype.toString.call(e); }
+}
+
+window.addEventListener('unhandledrejection', (ev) => {
+  console.error('Unhandled rejection:', ev.reason);
+  setStatus('Unhandled error: ' + describeError(ev.reason));
+});
+window.addEventListener('error', (ev) => {
+  console.error('Global error:', ev.error || ev);
+});
+
 const video    = document.getElementById('video');
 const overlay  = document.getElementById('overlay');
 const octx     = overlay.getContext('2d');
@@ -513,7 +541,7 @@ async function captureAndRecognize() {
     ok = await recognizeFrames(frames);
   } catch(e) {
     console.error('Capture failed:', e);
-    setStatus('Capture error: ' + e.message);
+    setStatus('Capture error: ' + describeError(e));
   } finally {
     capturing = false;
     ocrRunning = false;
@@ -676,7 +704,7 @@ async function recognizeFrames(frames) {
     return true;
   } catch(e) {
     console.error('recognizeFrames failed:', e);
-    setStatus('OCR error: ' + e.message);
+    setStatus('OCR error: ' + describeError(e));
     // Any chip left showing the "…" scanning state (the box that was
     // mid-read when this threw, plus everything after it) would otherwise
     // stay stuck forever since renderChip(i) never ran for it — reset
