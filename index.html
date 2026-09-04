@@ -178,6 +178,42 @@
     .model-ai  { background: #1d4ed8; color: #fff; }
     .model-ocr { background: #475569; color: #fff; }
 
+    /* ── AI Settings modal ── */
+    #ai-modal {
+      position: fixed; inset: 0; z-index: 100;
+      background: rgba(0,0,0,0.7);
+      display: none; align-items: center; justify-content: center;
+      padding: 16px;
+    }
+    #ai-modal.open { display: flex; }
+    .ai-modal-box {
+      background: #1e293b; border: 1px solid #334155; border-radius: 16px;
+      padding: 22px 20px 18px; width: 100%; max-width: 360px;
+      display: flex; flex-direction: column; gap: 12px;
+    }
+    .ai-modal-box h3 { font-size: 0.95rem; font-weight: 700; color: #f1f5f9; }
+    .ai-field { display: flex; flex-direction: column; gap: 4px; }
+    .ai-field label { font-size: 0.72rem; color: #94a3b8; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+    .ai-field input {
+      background: #0f172a; border: 1.5px solid #334155; border-radius: 8px;
+      color: #f1f5f9; font-size: 0.82rem; padding: 8px 10px;
+      outline: none; transition: border-color 0.15s;
+    }
+    .ai-field input:focus { border-color: #60a5fa; }
+    .ai-field input::placeholder { color: #475569; }
+    .ai-modal-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
+    .ai-modal-btns button {
+      flex: 1; padding: 9px 0; border-radius: 8px; font-size: 0.82rem;
+      font-weight: 600; cursor: pointer; border: none;
+    }
+    #ai-save { background: #1565c0; color: #fff; }
+    #ai-save:hover { background: #1976d2; }
+    #ai-cancel { background: transparent; color: #94a3b8; border: 1.5px solid #334155 !important; }
+    #ai-cancel:hover { color: #e2e8f0; }
+    #ai-clear { background: transparent; color: #f87171; border: 1.5px solid #7f1d1d !important; }
+    #ai-clear:hover { background: #450a0a; }
+    .ai-hint { font-size: 0.68rem; color: #64748b; line-height: 1.5; }
+
     .total-row { display: flex; align-items: center; justify-content: center; gap: 8px; }
     #total-val {
       font-size: 1.1rem; font-weight: 800;
@@ -252,6 +288,31 @@
   <div id="last-ocr"></div>
 </div>
 
+<!-- AI Settings modal -->
+<div id="ai-modal">
+  <div class="ai-modal-box">
+    <h3>🤖 Cloud AI Settings</h3>
+    <div class="ai-field">
+      <label>Base URL</label>
+      <input id="ai-url" type="url" placeholder="https://ai.psu.blue" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="ai-field">
+      <label>API Key</label>
+      <input id="ai-key" type="password" placeholder="sk-…" autocomplete="off">
+    </div>
+    <div class="ai-field">
+      <label>Model</label>
+      <input id="ai-mdl" type="text" placeholder="PSU-LLM/psu-gemma" autocomplete="off" spellcheck="false">
+    </div>
+    <p class="ai-hint">Uses OpenAI-compatible /v1/chat/completions. Leave blank to use Tesseract OCR only.</p>
+    <div class="ai-modal-btns">
+      <button id="ai-save">Save</button>
+      <button id="ai-cancel">Cancel</button>
+      <button id="ai-clear">Clear AI</button>
+    </div>
+  </div>
+</div>
+
 <script src="tesseract/tesseract.min.js"></script>
 <script>
 // ─────────────────────────────────────────────
@@ -272,11 +333,12 @@ const STABLE_THRESH = 12;
 const GOOD_READ_MIN = 4;
 
 // ─────────────────────────────────────────────
-//  AI model config
+//  AI model config  (OpenAI-compatible API)
 // ─────────────────────────────────────────────
-const AI_SERVER_KEY = 'aiServerUrl';
-const AI_MODEL      = 'qwen2.5vl:3b';
-const AI_TIMEOUT_MS = 45000;
+const AI_SERVER_KEY  = 'aiServerUrl';
+const AI_API_KEY_KEY = 'aiApiKey';
+const AI_MODEL_KEY   = 'aiModel';
+const AI_TIMEOUT_MS  = 20000;
 // Per-problem prompts give the model context about what kind of answer to expect,
 // which significantly reduces misreads on ambiguous handwriting.
 const AI_PROMPTS = [
@@ -305,8 +367,14 @@ const AI_PROMPTS = [
 function getAiServerUrl() {
   return (localStorage.getItem(AI_SERVER_KEY) || '').trim().replace(/\/$/, '');
 }
-function setAiServerUrl(url) {
-  localStorage.setItem(AI_SERVER_KEY, url.trim().replace(/\/$/, ''));
+function getAiApiKey() {
+  return (localStorage.getItem(AI_API_KEY_KEY) || '').trim();
+}
+function getAiModel() {
+  return (localStorage.getItem(AI_MODEL_KEY) || '').trim() || 'PSU-LLM/psu-gemma';
+}
+function isAiConfigured() {
+  return !!getAiServerUrl() && !!getAiApiKey();
 }
 
 function squarePad(source, size) {
@@ -327,29 +395,42 @@ function squarePad(source, size) {
 let currentAiController = null;
 
 async function recognizeWithAI(cropCanvas, problemIdx) {
-  const base = getAiServerUrl();
-  if (!base) return null;
-  const sq = squarePad(cropCanvas);
+  const base   = getAiServerUrl();
+  const apiKey = getAiApiKey();
+  if (!base || !apiKey) return null;
+  const model = getAiModel();
+  const sq  = squarePad(cropCanvas);
   const b64 = sq.toDataURL('image/png').split(',')[1];
 
   currentAiController = new AbortController();
   const timer = setTimeout(() => currentAiController.abort(), AI_TIMEOUT_MS);
   try {
-    const res = await fetch(base + '/api/generate', {
+    const res = await fetch(base + '/v1/chat/completions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + apiKey,
+      },
       body: JSON.stringify({
-        model: AI_MODEL,
-        prompt: AI_PROMPTS[problemIdx] || AI_PROMPTS[0],
-        images: [b64],
-        stream: false,
-        options: { temperature: 0 },
+        model,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image_url', image_url: { url: 'data:image/png;base64,' + b64 } },
+            { type: 'text', text: AI_PROMPTS[problemIdx] || AI_PROMPTS[0] },
+          ],
+        }],
+        max_tokens: 50,
+        temperature: 0,
       }),
       signal: currentAiController.signal,
     });
-    if (!res.ok) throw new Error('AI server HTTP ' + res.status);
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error('AI HTTP ' + res.status + (body ? ': ' + body.slice(0, 120) : ''));
+    }
     const data = await res.json();
-    return (data.response || '').trim();
+    return (data.choices?.[0]?.message?.content || '').trim();
   } finally {
     clearTimeout(timer);
     currentAiController = null;
@@ -540,19 +621,47 @@ document.getElementById('flip-btn').addEventListener('click', () => {
   startCamera();
 });
 
-document.getElementById('ai-btn').addEventListener('click', () => {
-  const current = getAiServerUrl();
-  const next = prompt(
-    'Local AI model server URL (see LOCAL_MODEL_SETUP.md).\n'
-    + 'Leave blank to disable and use Tesseract only.\n'
-    + 'Example: https://your-computer.your-tailnet.ts.net',
-    current
-  );
-  if (next === null) return;
-  setAiServerUrl(next);
-  setStatus(getAiServerUrl() ? 'AI server set — will try it first' : 'AI server cleared — using Tesseract only');
-  updateRetryLabel();
-});
+// ── AI Settings modal ──
+(function() {
+  const modal   = document.getElementById('ai-modal');
+  const urlInp  = document.getElementById('ai-url');
+  const keyInp  = document.getElementById('ai-key');
+  const mdlInp  = document.getElementById('ai-mdl');
+
+  function openModal() {
+    urlInp.value = getAiServerUrl();
+    keyInp.value = getAiApiKey();
+    mdlInp.value = localStorage.getItem(AI_MODEL_KEY) || '';
+    modal.classList.add('open');
+    urlInp.focus();
+  }
+  function closeModal() { modal.classList.remove('open'); }
+
+  document.getElementById('ai-btn').addEventListener('click', openModal);
+  document.getElementById('ai-cancel').addEventListener('click', closeModal);
+  modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+
+  document.getElementById('ai-save').addEventListener('click', () => {
+    const url = urlInp.value.trim().replace(/\/$/, '');
+    const key = keyInp.value.trim();
+    const mdl = mdlInp.value.trim();
+    localStorage.setItem(AI_SERVER_KEY,  url);
+    localStorage.setItem(AI_API_KEY_KEY, key);
+    localStorage.setItem(AI_MODEL_KEY,   mdl);
+    closeModal();
+    setStatus(isAiConfigured() ? 'Cloud AI ready — will try it first' : 'AI cleared — using Tesseract only');
+    updateRetryLabel();
+  });
+
+  document.getElementById('ai-clear').addEventListener('click', () => {
+    localStorage.removeItem(AI_SERVER_KEY);
+    localStorage.removeItem(AI_API_KEY_KEY);
+    localStorage.removeItem(AI_MODEL_KEY);
+    closeModal();
+    setStatus('AI cleared — using Tesseract only');
+    updateRetryLabel();
+  });
+})();
 
 document.getElementById('reset-btn').addEventListener('click', resetScores);
 
@@ -587,7 +696,7 @@ retryBtn.addEventListener('click', () => {
   if (!capturedFrames || ocrRunning || capturing) return;
   // Determine the force: if last run used AI (no force or forced AI), retry with tesseract; otherwise retry with AI
   const usedAi = lastModels.some(m => m === 'ai');
-  lastForceModel = usedAi ? 'tesseract' : (getAiServerUrl() ? 'ai' : null);
+  lastForceModel = usedAi ? 'tesseract' : (isAiConfigured() ? 'ai' : null);
   if (!lastForceModel) return;
   retryBtn.style.display = 'none';
   runRecognition(capturedFrames);
@@ -596,7 +705,7 @@ retryBtn.addEventListener('click', () => {
 function updateRetryLabel() {
   if (!capturedFrames) return;
   const usedAi = lastModels.some(m => m === 'ai');
-  retryBtn.textContent = usedAi ? '↺ Retry (Tesseract)' : (getAiServerUrl() ? '↺ Retry (AI)' : '');
+  retryBtn.textContent = usedAi ? '↺ Retry (Tesseract)' : (isAiConfigured() ? '↺ Retry (AI)' : '');
   retryBtn.style.display = retryBtn.textContent ? 'block' : 'none';
 }
 
@@ -843,7 +952,7 @@ const TESS_OPTIONS = {
 async function recognizeFrames(frames) {
   try {
     const answerRegs = guideAnswerBoxes(frames[0].width, frames[0].height);
-    const useAi = lastForceModel === 'ai' || (!lastForceModel && !!getAiServerUrl());
+    const useAi = lastForceModel === 'ai' || (!lastForceModel && isAiConfigured());
     const useTess = lastForceModel === 'tesseract' || !lastForceModel;
 
     for (let i = 0; i < 5; i++) {
