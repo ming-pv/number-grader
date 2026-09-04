@@ -22,31 +22,30 @@
 
     /* ── Header ── */
     header {
-      background: var(--primary); padding: 9px 14px;
+      background: var(--primary); padding: 8px 12px;
       display: flex; align-items: center; justify-content: space-between;
-      flex-shrink: 0;
+      flex-shrink: 0; gap: 6px;
     }
-    header h1 { font-size: 0.95rem; font-weight: 700; }
-    .hdr-btns { display: flex; gap: 6px; }
+    .hdr-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    header h1 { font-size: 0.88rem; font-weight: 700; white-space: nowrap; }
+    #sheet-counter {
+      font-size: 0.7rem; background: rgba(255,255,255,0.18);
+      padding: 2px 8px; border-radius: 10px; white-space: nowrap;
+    }
+    .hdr-btns { display: flex; gap: 5px; flex-shrink: 0; }
     .hdr-btn {
       background: rgba(255,255,255,0.15); border: none; color: #fff;
-      font-size: 0.8rem; padding: 5px 10px; border-radius: 6px; cursor: pointer;
+      font-size: 0.75rem; padding: 5px 9px; border-radius: 6px; cursor: pointer;
     }
     .hdr-btn:hover { background: rgba(255,255,255,0.25); }
 
     /* ── Camera view ── */
     #view {
       flex: 1; position: relative; overflow: hidden; background: #000;
-      min-height: 0; /* allow flex shrink */
+      min-height: 0;
       display: flex; align-items: center; justify-content: center;
     }
-    /* Square capture frame — sized in JS to the largest square that fits
-       #view, so the on-screen guide's normalized coordinates always match
-       a simple center-square-crop of the camera's native frame. */
-    #square-frame {
-      position: relative;
-      background: #000;
-    }
+    #square-frame { position: relative; background: #000; }
     #video {
       position: absolute; inset: 0; width: 100%; height: 100%;
       object-fit: cover; display: block;
@@ -56,23 +55,37 @@
       pointer-events: none;
     }
 
-    /* ── Status badge on camera ── */
+    /* ── Status badge ── */
     #status-badge {
       position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
       background: rgba(0,0,0,0.6); color: #fff; border-radius: 20px;
       padding: 4px 14px; font-size: 0.75rem; white-space: nowrap;
-      pointer-events: none;
-    }
-    #ocr-spinner {
-      position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
-      display: none; flex-direction: column; align-items: center; gap: 8px;
+      pointer-events: none; z-index: 5;
     }
 
-    /* ── Manual capture button — the reliable primary control; automatic
-       stability-triggered capture is a bonus on top of it, not a gate ── */
+    /* ── Grading overlay (replaces spinner; covers camera during OCR) ── */
+    #grading-overlay {
+      position: absolute; inset: 0; z-index: 20;
+      background: rgba(0,0,0,0.55);
+      display: none; flex-direction: column; align-items: center; justify-content: center;
+    }
+    .grading-box {
+      background: rgba(15,23,42,0.94); border: 1px solid #334155; border-radius: 18px;
+      padding: 26px 36px; display: flex; flex-direction: column;
+      align-items: center; gap: 14px; min-width: 180px;
+    }
+    #grading-label { color: #e2e8f0; font-size: 0.9rem; font-weight: 600; text-align: center; }
+    #cancel-btn {
+      padding: 7px 24px; border-radius: 8px; border: 1.5px solid #475569;
+      background: transparent; color: #94a3b8; font-size: 0.85rem;
+      cursor: pointer; transition: border-color 0.15s, color 0.15s;
+    }
+    #cancel-btn:hover { border-color: #94a3b8; color: #e2e8f0; }
+
+    /* ── Manual capture button ── */
     #capture-btn {
       position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
-      width: 60px; height: 60px; border-radius: 50%;
+      width: 60px; height: 60px; border-radius: 50%; z-index: 10;
       background: rgba(255,255,255,0.92); border: 3px solid rgba(0,0,0,0.35);
       font-size: 1.5rem; line-height: 1; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
@@ -80,13 +93,13 @@
     }
     #capture-btn:active { transform: translateX(-50%) scale(0.9); }
     #capture-btn:disabled { opacity: 0.5; cursor: default; }
+
     .spinner-ring {
-      width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.2);
-      border-top-color: #fff; border-radius: 50%;
+      width: 38px; height: 38px; border: 4px solid rgba(255,255,255,0.15);
+      border-top-color: #60a5fa; border-radius: 50%;
       animation: spin 0.8s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .spinner-label { color: #fff; font-size: 0.8rem; background: rgba(0,0,0,0.5); padding: 2px 10px; border-radius: 10px; }
 
     /* ── Camera error / permission screen ── */
     #cam-error {
@@ -108,20 +121,41 @@
     .ebtn-outline { background: transparent; color: var(--muted); border: 1.5px solid var(--border); }
     #capture-input, #file-input { display: none; }
 
+    /* ── History strip ── */
+    #history-bar {
+      flex-shrink: 0; display: flex; gap: 6px; overflow-x: auto;
+      padding: 5px 10px 4px; background: var(--bg);
+      border-top: 1px solid var(--border);
+      scrollbar-width: none; min-height: 0;
+    }
+    #history-bar:empty { display: none; }
+    #history-bar::-webkit-scrollbar { display: none; }
+    .hist-card {
+      flex-shrink: 0; background: var(--surface); border-radius: 8px;
+      padding: 3px 8px; font-size: 0.65rem; text-align: center; min-width: 46px;
+    }
+    .hist-card .hc-num { color: #475569; display: block; font-size: 0.58rem; }
+    .hist-card .hc-score { font-weight: 800; font-size: 0.88rem; display: block; }
+    .hc-5 .hc-score { color: #4ade80; }
+    .hc-4 .hc-score { color: #86efac; }
+    .hc-3 .hc-score { color: #fb923c; }
+    .hc-low .hc-score { color: #f87171; }
+    .hist-card .hc-detail { color: #475569; font-size: 0.56rem; letter-spacing: 0.02em; }
+
     /* ── Score bar ── */
     #score-bar {
       flex-shrink: 0; background: var(--surface);
       border-top: 1px solid var(--border);
-      padding: 10px 10px 12px;
+      padding: 8px 8px 10px;
     }
-    .chips { display: flex; gap: 6px; justify-content: center; margin-bottom: 8px; }
+    .chips { display: flex; gap: 4px; justify-content: center; margin-bottom: 7px; }
     .chip {
       flex: 1; max-width: 70px; display: flex; flex-direction: column;
-      align-items: center; gap: 3px;
+      align-items: center; gap: 2px;
     }
-    .chip-lbl { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+    .chip-lbl { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
     .chip-val {
-      width: 100%; text-align: center; font-size: 1.5rem; font-weight: 800; line-height: 1;
+      width: 100%; text-align: center; font-size: 1.45rem; font-weight: 800; line-height: 1;
       border-radius: 8px; padding: 6px 4px;
       cursor: pointer; user-select: none;
       transition: transform 0.1s, background 0.25s;
@@ -133,22 +167,39 @@
     .v-ok      { background: #14532d; color: #4ade80; border-color: #16a34a; }
     .v-fail    { background: #450a0a; color: #f87171; border-color: #dc2626; }
     .v-unknown { background: #431407; color: #fb923c; border-color: #ea580c; }
+    .v-manual  { border-style: dashed; }   /* dashed border = manually overridden */
     @keyframes pulse { 0%,100%{opacity:1}50%{opacity:.4} }
-    .chip-exp { font-size: 0.58rem; color: #64748b; }
+    .chip-exp  { font-size: 0.56rem; color: #64748b; }
+    .chip-read { font-size: 0.55rem; color: #475569; max-width: 66px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; min-height: 0.7rem; }
+    .chip-model {
+      font-size: 0.52rem; padding: 1px 5px; border-radius: 4px;
+      font-weight: 700; letter-spacing: 0.04em;
+    }
+    .model-ai  { background: #1e3a5f; color: #60a5fa; }
+    .model-ocr { background: #1e293b; color: #64748b; }
 
     .total-row { display: flex; align-items: center; justify-content: center; gap: 8px; }
     #total-val {
-      font-size: 1.15rem; font-weight: 800;
+      font-size: 1.1rem; font-weight: 800;
       background: var(--border); color: var(--text);
-      border-radius: 8px; padding: 4px 20px; min-width: 90px; text-align: center;
+      border-radius: 8px; padding: 4px 18px; min-width: 80px; text-align: center;
     }
-    #last-ocr { font-size: 0.62rem; color: #475569; text-align: center; margin-top: 4px; }
+    #retry-btn {
+      padding: 4px 12px; border-radius: 6px; border: 1.5px solid var(--border);
+      background: transparent; color: var(--muted); font-size: 0.72rem;
+      cursor: pointer; display: none; transition: border-color 0.15s, color 0.15s;
+    }
+    #retry-btn:hover { border-color: #60a5fa; color: #60a5fa; }
+    #last-ocr { font-size: 0.6rem; color: #475569; text-align: center; margin-top: 4px; }
   </style>
 </head>
 <body>
 
 <header>
-  <h1>📝 POSN Grader P11–15</h1>
+  <div class="hdr-left">
+    <h1>📝 POSN Grader P11–15</h1>
+    <span id="sheet-counter">Sheet #0</span>
+  </div>
   <div class="hdr-btns">
     <button class="hdr-btn" id="ai-btn">🤖 AI</button>
     <button class="hdr-btn" id="flip-btn">🔄 Flip</button>
@@ -161,9 +212,13 @@
     <video id="video" autoplay playsinline muted></video>
     <canvas id="overlay"></canvas>
     <div id="status-badge">Starting camera…</div>
-    <div id="ocr-spinner">
-      <div class="spinner-ring"></div>
-      <div class="spinner-label" id="spinner-label">Reading…</div>
+    <!-- Grading overlay: shown during OCR; video stays visible behind it -->
+    <div id="grading-overlay">
+      <div class="grading-box">
+        <div class="spinner-ring"></div>
+        <div id="grading-label">Grading…</div>
+        <button id="cancel-btn">Cancel</button>
+      </div>
     </div>
     <button id="capture-btn" title="Capture now">📸</button>
   </div>
@@ -184,11 +239,15 @@
   </div>
 </div>
 
+<!-- History strip: one card per completed sheet -->
+<div id="history-bar"></div>
+
 <!-- Score bar -->
 <div id="score-bar">
   <div class="chips" id="chips"></div>
   <div class="total-row">
     <div id="total-val">— / 5</div>
+    <button id="retry-btn">↺ Retry</button>
   </div>
   <div id="last-ocr"></div>
 </div>
@@ -206,22 +265,18 @@ const PROBLEMS = [
   { num: 15, answer: 480,   tol: 0.1,   label: '480' },
 ];
 const COLORS = ['#ef4444','#3b82f6','#22c55e','#f59e0b','#a855f7'];
-const LOOP_MS       = 250;  // frame check interval
-const STABLE_FRAMES = 6;    // frames stable before OCR triggers (~1.5s)
-const OCR_COOLDOWN  = 4000; // ms minimum between OCR runs
-const STABLE_THRESH = 12;   // avg pixel diff to count as stable (loosened —
-                             // 6 was too strict for real handheld sensor noise)
-const GOOD_READ_MIN = 4;    // # of non-null scores needed to play the success chime
+const LOOP_MS       = 250;
+const STABLE_FRAMES = 6;
+const OCR_COOLDOWN  = 4000;
+const STABLE_THRESH = 12;
+const GOOD_READ_MIN = 4;
 
 // ─────────────────────────────────────────────
-//  Optional local AI model (Ollama running on a computer you control) —
-//  see LOCAL_MODEL_SETUP.md for how to stand one up and expose it via
-//  Tailscale. Tried first when configured; falls back to Tesseract on
-//  any failure (unreachable, timeout, bad response) or when unset.
+//  AI model config
 // ─────────────────────────────────────────────
 const AI_SERVER_KEY = 'aiServerUrl';
 const AI_MODEL      = 'qwen2.5vl:3b';
-const AI_TIMEOUT_MS = 45000;   // measured ~35s/image on CPU-only hardware
+const AI_TIMEOUT_MS = 45000;
 const AI_PROMPT = 'Read the handwritten number or fraction in this image. '
   + 'There may be extra text or units next to it - ignore that. Reply with '
   + 'ONLY the number or fraction (e.g. "36" or "9/20"), nothing else.';
@@ -233,11 +288,6 @@ function setAiServerUrl(url) {
   localStorage.setItem(AI_SERVER_KEY, url.trim().replace(/\/$/, ''));
 }
 
-// Pad a crop to a square before sending it to the vision model. Verified
-// necessary by direct testing: the raw wide/short crop shape (a typical
-// answer cell is ~5:1 width:height) made the model return garbage or
-// empty output; padding to square with white margins fixed this
-// completely for the same content.
 function squarePad(source, size) {
   size = size || 384;
   const sw = source.width, sh = source.height;
@@ -252,16 +302,17 @@ function squarePad(source, size) {
   return out;
 }
 
-// Returns recognized text, or null if the AI server isn't configured/failed
-// (caller falls back to Tesseract in either case).
+// currentAiController is aborted when the user hits Cancel.
+let currentAiController = null;
+
 async function recognizeWithAI(cropCanvas) {
   const base = getAiServerUrl();
   if (!base) return null;
   const sq = squarePad(cropCanvas);
   const b64 = sq.toDataURL('image/png').split(',')[1];
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
+  currentAiController = new AbortController();
+  const timer = setTimeout(() => currentAiController.abort(), AI_TIMEOUT_MS);
   try {
     const res = await fetch(base + '/api/generate', {
       method: 'POST',
@@ -273,106 +324,96 @@ async function recognizeWithAI(cropCanvas) {
         stream: false,
         options: { temperature: 0 },
       }),
-      signal: controller.signal,
+      signal: currentAiController.signal,
     });
     if (!res.ok) throw new Error('AI server HTTP ' + res.status);
     const data = await res.json();
     return (data.response || '').trim();
   } finally {
     clearTimeout(timer);
+    currentAiController = null;
   }
 }
 
 // ─────────────────────────────────────────────
-//  Alignment guide (fixed layout — the user aligns the sheet to this,
-//  so box locations no longer depend on fragile auto-detection).
-//  Coordinates are normalized [0,1] within a center-square crop of the
-//  camera frame (which is exactly what the square preview shows via
-//  object-fit:cover).
+//  Guide
 // ─────────────────────────────────────────────
-// Horizontal extent + column ratio are the source of truth; vertical
-// extent is DERIVED so that row height == number-column width (the
-// printed number cell is roughly square). Deriving it avoids the two
-// ever drifting out of sync again, as opposed to hardcoding both.
 const GUIDE = (() => {
   const left = 0.10, right = 0.92;
-  const numColFrac = 1/7;               // answer:number width ratio = 6:1
+  const numColFrac = 1/7;
   const numColW = (right-left) * numColFrac;
-  const rowH = numColW;                  // number cell ≈ square
+  const rowH = numColW;
   const totalH = rowH * 5;
   const vCenter = 0.5;
-  return {
-    left, right,
-    top: vCenter - totalH/2,
-    bottom: vCenter + totalH/2,
-    numColFrac,
-  };
+  return { left, right, top: vCenter - totalH/2, bottom: vCenter + totalH/2, numColFrac };
 })();
 
 // ─────────────────────────────────────────────
 //  State
 // ─────────────────────────────────────────────
-let stream       = null;
-let facingMode   = 'environment';
-let loopTimer    = null;
-let prevSmall    = null;   // 32×32 canvas of prev frame
-let stableCount  = 0;
-let capturing    = false;  // phase 1: grabbing snapshots (fast, ~0.5s)
-let ocrRunning   = false;  // phase 2: OCR on captured snapshots (slow, backgrounded)
-let lastOcrTime  = 0;
-let hasError     = false;  // an error message is on screen — see setError()/loop()
-let scores       = [null,null,null,null,null];
-const CAPTURE_COUNT   = 3;    // snapshots taken once alignment is stable
-const CAPTURE_GAP_MS  = 120;  // spacing between snapshots
+let stream         = null;
+let facingMode     = 'environment';
+let loopTimer      = null;
+let prevSmall      = null;
+let stableCount    = 0;
+let capturing      = false;
+let ocrRunning     = false;
+let lastOcrTime    = 0;
+let hasError       = false;
+let gradingCancelled = false;
 
-// Rejections from fetch/XHR/Worker failures are often a raw Event or
-// ProgressEvent (no .message), or a string, not a proper Error — plain
-// `e.message` silently turns those into the unhelpful string "undefined".
-// This extracts whatever's actually diagnosable from any shape of `e`.
+let scores    = [null,null,null,null,null];
+let manuals   = [false,false,false,false,false];  // true = user manually flipped
+let lastModels = [null,null,null,null,null];       // 'ai' | 'tesseract' | null
+let lastReads  = ['','','','',''];                 // raw OCR text per box
+let capturedFrames = null;                         // kept for retry
+let lastForceModel = null;                         // null | 'ai' | 'tesseract'
+
+let sheetCount = 0;
+let history    = [];   // [{num, scores, models, reads, sum, time}]
+
+const CAPTURE_COUNT  = 3;
+const CAPTURE_GAP_MS = 120;
+
 function describeError(e) {
-  if (e === undefined) return '(no error object — undefined)';
-  if (e === null) return '(no error object — null)';
+  if (e === undefined) return '(undefined)';
+  if (e === null) return '(null)';
   if (typeof e === 'string') return e;
-  if (e instanceof Error) return `${e.name}: ${e.message}${e.stack ? '\n' + e.stack : ''}`;
+  if (e instanceof Error) return `${e.name}: ${e.message}`;
   if (e && e.message) return String(e.message);
   if (e && e.type) {
-    // Event / ProgressEvent / ErrorEvent — e.g. a failed <script>/fetch load
     const t = e.target;
     const src = t && (t.src || t.currentSrc || t.href);
-    return `event "${e.type}"` + (src ? ` on ${src}` : '') +
-           (t && t.status !== undefined ? ` (HTTP ${t.status})` : '');
+    return `event "${e.type}"` + (src ? ` on ${src}` : '');
   }
   try { return JSON.stringify(e); } catch(_) { return Object.prototype.toString.call(e); }
 }
 
-// Shows an error message AND marks it as "unread" so the live loop's
-// routine per-frame status updates (e.g. "hold still…") leave it alone
-// instead of clobbering it within one 250ms tick. Cleared only when the
-// next real capture attempt starts (see captureAndRecognize) — not on a
-// timer — so it stays up for as long as it takes to actually read it.
-function setError(msg) {
-  hasError = true;
-  setStatus(msg);
-}
+function setError(msg) { hasError = true; setStatus(msg); }
 
-window.addEventListener('unhandledrejection', (ev) => {
+window.addEventListener('unhandledrejection', ev => {
   console.error('Unhandled rejection:', ev.reason);
   setError('Unhandled error: ' + describeError(ev.reason));
 });
-window.addEventListener('error', (ev) => {
-  console.error('Global error:', ev.error || ev);
-});
-
-const video    = document.getElementById('video');
-const overlay  = document.getElementById('overlay');
-const octx     = overlay.getContext('2d');
-const spinner  = document.getElementById('ocr-spinner');
-const statusBadge = document.getElementById('status-badge');
-const viewEl   = document.getElementById('view');
-const squareFrame = document.getElementById('square-frame');
+window.addEventListener('error', ev => console.error('Global error:', ev.error || ev));
 
 // ─────────────────────────────────────────────
-//  Score chips (build once)
+//  DOM refs
+// ─────────────────────────────────────────────
+const video       = document.getElementById('video');
+const overlay     = document.getElementById('overlay');
+const octx        = overlay.getContext('2d');
+const statusBadge = document.getElementById('status-badge');
+const viewEl      = document.getElementById('view');
+const squareFrame = document.getElementById('square-frame');
+const gradingOverlay = document.getElementById('grading-overlay');
+const gradingLabel   = document.getElementById('grading-label');
+const cancelBtn      = document.getElementById('cancel-btn');
+const retryBtn       = document.getElementById('retry-btn');
+const historyBar     = document.getElementById('history-bar');
+
+// ─────────────────────────────────────────────
+//  Build chips
 // ─────────────────────────────────────────────
 const chipsEl = document.getElementById('chips');
 PROBLEMS.forEach((p, i) => {
@@ -382,11 +423,14 @@ PROBLEMS.forEach((p, i) => {
     <span class="chip-lbl">P${p.num}</span>
     <div class="chip-val v-idle" id="chip-${i}">—</div>
     <span class="chip-exp">${p.label}</span>
+    <span class="chip-read" id="read-${i}"></span>
+    <span class="chip-model" id="model-${i}"></span>
   `;
   chipsEl.appendChild(chip);
   document.getElementById(`chip-${i}`).addEventListener('click', () => {
     if (scores[i] === null) return;
     scores[i] = scores[i] === 1 ? 0 : 1;
+    manuals[i] = true;
     renderChip(i);
     renderTotal();
   });
@@ -394,9 +438,6 @@ PROBLEMS.forEach((p, i) => {
 
 // ─────────────────────────────────────────────
 //  Square frame sizing
-//  Keeps #square-frame the largest square that fits inside #view, so the
-//  guide's normalized coordinates always correspond 1:1 to the displayed
-//  square (no letterbox math needed to draw it).
 // ─────────────────────────────────────────────
 function sizeSquareFrame() {
   const side = Math.max(50, Math.min(viewEl.clientWidth, viewEl.clientHeight));
@@ -407,7 +448,7 @@ window.addEventListener('resize', sizeSquareFrame);
 sizeSquareFrame();
 
 // ─────────────────────────────────────────────
-//  Success chime (synthesized — no external audio asset)
+//  Chime
 // ─────────────────────────────────────────────
 let audioCtx = null;
 function unlockAudio() {
@@ -430,8 +471,7 @@ function playChime() {
       gain.gain.exponentialRampToValueAtTime(0.28, t0 + 0.015);
       gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.22);
       osc.connect(gain).connect(audioCtx.destination);
-      osc.start(t0);
-      osc.stop(t0 + 0.24);
+      osc.start(t0); osc.stop(t0 + 0.24);
     });
   } catch(e) { console.warn('chime failed:', e); }
 }
@@ -461,13 +501,13 @@ async function startCamera() {
     const desc  = document.getElementById('err-desc');
     if (err.name === 'NotAllowedError') {
       title.textContent = 'Camera permission denied';
-      desc.innerHTML = 'Please allow camera access in your browser settings, then reload the page.';
+      desc.innerHTML = 'Please allow camera access in your browser settings, then reload.';
     } else if (err.name === 'NotFoundError') {
       title.textContent = 'No camera found';
       desc.innerHTML = 'No camera detected. Use the options below.';
     } else if (location.protocol === 'file:') {
       title.textContent = 'Live camera blocked';
-      desc.innerHTML = 'Browsers block live camera from <strong>file://</strong> URLs. Use <strong>📷 Take Photo</strong> (works on mobile!) or run a local server.';
+      desc.innerHTML = 'Browsers block live camera from <strong>file://</strong> URLs.';
     } else {
       title.textContent = 'Camera error';
       desc.textContent = err.message;
@@ -488,24 +528,60 @@ document.getElementById('ai-btn').addEventListener('click', () => {
     + 'Example: https://your-computer.your-tailnet.ts.net',
     current
   );
-  if (next === null) return; // cancelled
+  if (next === null) return;
   setAiServerUrl(next);
   setStatus(getAiServerUrl() ? 'AI server set — will try it first' : 'AI server cleared — using Tesseract only');
+  updateRetryLabel();
 });
 
-document.getElementById('reset-btn').addEventListener('click', () => {
-  scores = [null,null,null,null,null];
-  for (let i=0;i<5;i++) { const c=document.getElementById(`chip-${i}`); c.className='chip-val v-idle'; c.textContent='—'; }
+document.getElementById('reset-btn').addEventListener('click', resetScores);
+
+function resetScores() {
+  scores  = [null,null,null,null,null];
+  manuals = [false,false,false,false,false];
+  lastModels = [null,null,null,null,null];
+  lastReads  = ['','','','',''];
+  capturedFrames = null;
+  lastForceModel = null;
+  for (let i=0;i<5;i++) {
+    const c = document.getElementById(`chip-${i}`);
+    c.className = 'chip-val v-idle'; c.textContent = '—';
+    document.getElementById(`read-${i}`).textContent = '';
+    document.getElementById(`model-${i}`).textContent = '';
+    document.getElementById(`model-${i}`).className = 'chip-model';
+  }
   document.getElementById('total-val').textContent = '— / 5';
   document.getElementById('last-ocr').textContent = '';
+  retryBtn.style.display = 'none';
   stableCount = 0;
   lastOcrTime = 0;
+}
+
+// Cancel grading
+cancelBtn.addEventListener('click', () => {
+  gradingCancelled = true;
+  if (currentAiController) currentAiController.abort();
 });
 
-// Manual capture — the reliable primary control. Automatic stability
-// detection can be finicky on real handheld cameras (sensor noise,
-// auto-exposure hunting), so this button bypasses it entirely: tap it
-// once you've eyeballed the alignment yourself.
+// Retry: re-run recognition on captured frames with the opposite model
+retryBtn.addEventListener('click', () => {
+  if (!capturedFrames || ocrRunning || capturing) return;
+  // Determine the force: if last run used AI (no force or forced AI), retry with tesseract; otherwise retry with AI
+  const usedAi = lastModels.some(m => m === 'ai');
+  lastForceModel = usedAi ? 'tesseract' : (getAiServerUrl() ? 'ai' : null);
+  if (!lastForceModel) return;
+  retryBtn.style.display = 'none';
+  runRecognition(capturedFrames);
+});
+
+function updateRetryLabel() {
+  if (!capturedFrames) return;
+  const usedAi = lastModels.some(m => m === 'ai');
+  retryBtn.textContent = usedAi ? '↺ Retry (Tesseract)' : (getAiServerUrl() ? '↺ Retry (AI)' : '');
+  retryBtn.style.display = retryBtn.textContent ? 'block' : 'none';
+}
+
+// Capture button
 const captureBtn = document.getElementById('capture-btn');
 captureBtn.addEventListener('click', () => {
   if (!stream || !video.videoWidth || capturing || ocrRunning) return;
@@ -528,8 +604,6 @@ function loadImageFile(file) {
 document.getElementById('capture-input').addEventListener('change', function(){ loadImageFile(this.files[0]); this.value=''; });
 document.getElementById('file-input').addEventListener('change', function(){ loadImageFile(this.files[0]); this.value=''; });
 
-// One-shot for photo / file fallback. Shows the same center-square-crop +
-// guide the live view would show, so what you see is what gets read.
 async function runOnce(img) {
   document.getElementById('cam-error').style.display = 'none';
   sizeSquareFrame();
@@ -548,61 +622,43 @@ async function runOnce(img) {
 // ─────────────────────────────────────────────
 //  Live loop
 // ─────────────────────────────────────────────
-function startLoop() {
-  stopLoop();
-  loop();
-}
-function stopLoop() {
-  if (loopTimer) { clearTimeout(loopTimer); loopTimer = null; }
-}
+function startLoop() { stopLoop(); loop(); }
+function stopLoop() { if (loopTimer) { clearTimeout(loopTimer); loopTimer = null; } }
 
 async function loop() {
-  if (!stream || !video.videoWidth) {
-    loopTimer = setTimeout(loop, LOOP_MS);
-    return;
-  }
+  if (!stream || !video.videoWidth) { loopTimer = setTimeout(loop, LOOP_MS); return; }
 
-  // Capture frame to offscreen canvas
   const fw = video.videoWidth, fh = video.videoHeight;
   const fc = tmpCanvas(fw, fh);
   fc.getContext('2d').drawImage(video, 0, 0, fw, fh);
 
-  // Stability check (compare 32×32 thumbnails)
   const small = tmpCanvas(32, 32);
   small.getContext('2d').drawImage(fc, 0, 0, 32, 32);
   const diff = prevSmall ? frameDiff(small, prevSmall) : 999;
   prevSmall = small;
 
-  if (diff < STABLE_THRESH) {
-    stableCount = Math.min(stableCount + 1, STABLE_FRAMES + 5);
-  } else {
-    stableCount = 0;
-  }
+  // Don't update stability or status while grading — the overlay is showing
+  if (!ocrRunning && !capturing) {
+    if (diff < STABLE_THRESH) {
+      stableCount = Math.min(stableCount + 1, STABLE_FRAMES + 5);
+    } else {
+      stableCount = 0;
+    }
 
-  clearOverlay();
-  drawGuide(capturing || ocrRunning);
+    clearOverlay();
+    drawGuide(false);
 
-  const now = Date.now();
-  const stable = stableCount >= STABLE_FRAMES;
-  const cooldownOk = now - lastOcrTime > OCR_COOLDOWN;
+    const now = Date.now();
+    const stable = stableCount >= STABLE_FRAMES;
+    const cooldownOk = now - lastOcrTime > OCR_COOLDOWN;
 
-  if (stable && cooldownOk && !capturing && !ocrRunning) {
-    lastOcrTime = Date.now();
-    stableCount = 0;
-    // Fire-and-forget: do NOT await this. Recognition is slow (several
-    // Tesseract passes); awaiting it here would freeze the live preview
-    // and stability check for the whole duration. Capture is instant and
-    // runs first so the user gets immediate feedback; recognition then
-    // proceeds independently while the loop keeps ticking normally.
-    captureAndRecognize();
-  } else if (!stable && !capturing && !ocrRunning && !hasError) {
-    // Show live progress so it's visible from the status text alone
-    // whether phase 1 (stability/capture-trigger) is working at all —
-    // stuck at a low number or resetting repeatedly means the camera
-    // never reads as "stable", separate from any OCR problem in phase 2.
-    // Skipped while hasError is set, so an error message someone still
-    // needs to read doesn't get overwritten within one 250ms tick.
-    setStatus(`Align sheet to the guide, hold still… (${stableCount}/${STABLE_FRAMES})`);
+    if (stable && cooldownOk) {
+      lastOcrTime = Date.now();
+      stableCount = 0;
+      captureAndRecognize();
+    } else if (!stable && !hasError) {
+      setStatus(`Align sheet to the guide, hold still… (${stableCount}/${STABLE_FRAMES})`);
+    }
   }
 
   loopTimer = setTimeout(loop, LOOP_MS);
@@ -611,15 +667,14 @@ async function loop() {
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ─────────────────────────────────────────────
-//  Phase 1: capture a few snapshots fast (no OCR yet)
-//  Phase 2: recognize using those snapshots, in the background
+//  Phase 1: capture snapshots; Phase 2: recognize
 // ─────────────────────────────────────────────
 async function captureAndRecognize() {
   capturing = true;
   captureBtn.disabled = true;
-  hasError = false;   // a fresh attempt is a deliberate reason to clear any old error
+  hasError = false;
+  retryBtn.style.display = 'none';
   setStatus('Capturing…');
-  let ok = false;
 
   try {
     const frames = [];
@@ -630,30 +685,49 @@ async function captureAndRecognize() {
       frames.push(fc);
       if (i < CAPTURE_COUNT - 1) await sleep(CAPTURE_GAP_MS);
     }
-
+    capturedFrames = frames;
+    lastForceModel = null;
     capturing = false;
-    ocrRunning = true;
-    spinner.style.display = 'flex';
-    setStatus('Reading answers…');
-
-    ok = await recognizeFrames(frames);
+    await runRecognition(frames);
   } catch(e) {
     console.error('Capture failed:', e);
     setError('Capture error: ' + describeError(e));
-  } finally {
     capturing = false;
     ocrRunning = false;
     captureBtn.disabled = false;
-    spinner.style.display = 'none';
-    // Only overwrite the status on success — an error message set above
-    // (here or inside recognizeFrames) should stay visible instead of
-    // being instantly clobbered, so failures are actually diagnosable.
-    if (ok) setStatus('Scanning — hold sheet steady…');
+    gradingOverlay.style.display = 'none';
+  }
+}
+
+async function runRecognition(frames) {
+  ocrRunning = true;
+  captureBtn.disabled = true;
+  gradingCancelled = false;
+  gradingOverlay.style.display = 'flex';
+  gradingLabel.textContent = 'Grading…';
+
+  // Reset per-box state
+  lastModels = [null,null,null,null,null];
+  lastReads  = ['','','','',''];
+  manuals    = [false,false,false,false,false];
+
+  let ok = false;
+  try {
+    ok = await recognizeFrames(frames);
+  } catch(e) {
+    console.error('Recognition failed:', e);
+    setError('OCR error: ' + describeError(e));
+  } finally {
+    ocrRunning = false;
+    captureBtn.disabled = false;
+    gradingOverlay.style.display = 'none';
+    if (ok) setStatus('Done — point at next sheet');
+    updateRetryLabel();
   }
 }
 
 // ─────────────────────────────────────────────
-//  Frame diff
+//  Frame diff helpers
 // ─────────────────────────────────────────────
 function frameDiff(c1, c2) {
   const d1 = c1.getContext('2d').getImageData(0,0,32,32).data;
@@ -669,10 +743,6 @@ function tmpCanvas(w, h) {
 
 // ─────────────────────────────────────────────
 //  Guide → crop boxes
-//  The live square preview shows a center-square crop of the camera's
-//  native (non-square) frame via object-fit:cover. Replicate that same
-//  crop here so a captured frame's answer-cell pixels line up with what
-//  the user visually aligned to the guide.
 // ─────────────────────────────────────────────
 function guideAnswerBoxes(imgW, imgH) {
   const side = Math.min(imgW, imgH);
@@ -682,18 +752,14 @@ function guideAnswerBoxes(imgW, imgH) {
   const rowH = (gy1 - gy0) / 5;
   const dividerX = gx0 + (gx1 - gx0) * GUIDE.numColFrac;
   const pad = rowH * 0.06;
-
   return Array.from({ length: 5 }, (_, i) => {
     const y0 = gy0 + i*rowH, y1 = gy0 + (i+1)*rowH;
-    return {
-      x: dividerX + pad, y: y0 + pad,
-      w: gx1 - dividerX - pad*2, h: y1 - y0 - pad*2,
-    };
+    return { x: dividerX + pad, y: y0 + pad, w: gx1 - dividerX - pad*2, h: y1 - y0 - pad*2 };
   });
 }
 
 // ─────────────────────────────────────────────
-//  Draw overlay on top of video (or a static captured image)
+//  Overlay drawing
 // ─────────────────────────────────────────────
 function clearOverlay() {
   overlay.width  = overlay.clientWidth;
@@ -701,13 +767,10 @@ function clearOverlay() {
   octx.clearRect(0, 0, overlay.width, overlay.height);
 }
 
-// Draws the fixed guide grid + row labels + (once available) score badges.
-// Does NOT clear the canvas first — caller controls that, since the static
-// photo fallback draws an image into the same canvas right before this.
 function drawGuide(analyzing) {
   const W = overlay.width, H = overlay.height;
-  const gx0 = GUIDE.left*W,  gx1 = GUIDE.right*W;
-  const gy0 = GUIDE.top*H,   gy1 = GUIDE.bottom*H;
+  const gx0 = GUIDE.left*W, gx1 = GUIDE.right*W;
+  const gy0 = GUIDE.top*H,  gy1 = GUIDE.bottom*H;
   const rowH = (gy1 - gy0) / 5;
   const dividerX = gx0 + (gx1-gx0)*GUIDE.numColFrac;
 
@@ -725,7 +788,6 @@ function drawGuide(analyzing) {
   for (let i = 0; i < 5; i++) {
     const y0 = gy0 + i*rowH;
     const col = COLORS[i];
-
     const lbl = `P${PROBLEMS[i].num}`;
     octx.font = 'bold 13px system-ui';
     const tw = octx.measureText(lbl).width;
@@ -748,100 +810,87 @@ function drawGuide(analyzing) {
 }
 
 // ─────────────────────────────────────────────
-//  OCR — recognize against a set of pre-captured frames (phase 2).
-//  For each box, try frames in order and keep the first one that parses
-//  to a valid number; only touches a 2nd/3rd frame when the previous one
-//  failed, so the common case costs the same as reading a single frame.
+//  OCR
 // ─────────────────────────────────────────────
-// Self-hosted, same-origin copies of everything Tesseract.js needs — by
-// default it pulls the worker/core scripts from jsdelivr AND the language
-// data from tessdata.projectnaptha.com; if a network blocks either CDN,
-// or a manually-managed worker ends up in a broken state (see below),
-// recognition fails. Hosting them alongside index.html removes both
-// external dependencies.
 const TESS_OPTIONS = {
   workerPath: 'tesseract/worker.min.js',
-  corePath:   'tesseract/tesseract-core.wasm.js',   // non-SIMD build
+  corePath:   'tesseract/tesseract-core.wasm.js',
   langPath:   'tesseract',
 };
 
-// Returns true on success, false on failure (caller keeps the error status
-// visible on false instead of overwriting it — see captureAndRecognize).
-//
-// Deliberately uses the static Tesseract.recognize() convenience call
-// (which spins up and tears down its own worker per call) instead of a
-// long-lived worker via createWorker()+setParameters()+recognize(). The
-// manual-worker pattern reliably left the OCR engine's internal API
-// object null on this device/browser combo — every method on it
-// (SetVariable, SetImageFile, ...) threw "Cannot read properties of
-// null", even though createWorker() itself resolved without error. The
-// static per-call method takes a small extra setup cost each time but
-// was verified to actually work where the manual pattern didn't.
 async function recognizeFrames(frames) {
   try {
     const answerRegs = guideAnswerBoxes(frames[0].width, frames[0].height);
+    const useAi = lastForceModel === 'ai' || (!lastForceModel && !!getAiServerUrl());
+    const useTess = lastForceModel === 'tesseract' || !lastForceModel;
 
     for (let i = 0; i < 5; i++) {
-      setSpinner(`Reading P${PROBLEMS[i].num}…`);
+      if (gradingCancelled) {
+        setStatus('Cancelled');
+        for (let j = i; j < 5; j++) renderChip(j);
+        return false;
+      }
+
       setChipScan(i);
       let result = null;
+      let rawText = '';
 
-      // Try the local AI model first, if configured (see LOCAL_MODEL_SETUP.md).
-      // Much better at messy handwriting than Tesseract. Any failure here
-      // (server not configured, unreachable, timeout, unparseable reply)
-      // falls through to the Tesseract loop below unchanged.
-      if (getAiServerUrl()) {
+      if (useAi) {
         try {
-          setSpinner(`Reading P${PROBLEMS[i].num}… (AI)`);
+          gradingLabel.textContent = `Reading P${PROBLEMS[i].num}… (AI)`;
           const box = answerRegs[i];
           const crop = tmpCanvas(box.w, box.h);
           crop.getContext('2d').drawImage(frames[0], box.x, box.y, box.w, box.h, 0, 0, box.w, box.h);
           const text = await recognizeWithAI(crop);
-          if (text) result = gradeOne(text, i);
+          if (text) {
+            rawText = text;
+            result = gradeOne(text, i);
+            lastModels[i] = 'ai';
+          }
         } catch(e) {
-          console.warn(`AI recognition failed for P${PROBLEMS[i].num}, falling back to Tesseract:`, describeError(e));
+          if (gradingCancelled) { setStatus('Cancelled'); return false; }
+          console.warn(`AI failed P${PROBLEMS[i].num}:`, describeError(e));
         }
       }
 
-      for (const frame of frames) {
-        if (result !== null) break;   // AI already got a valid read
-        const dataURL = cropRegion(frame, answerRegs[i]);
-        const { data: { text } } = await Tesseract.recognize(dataURL, 'eng', {
-          ...TESS_OPTIONS,
-          tessedit_char_whitelist: '0123456789./,= -',
-          logger: m => {
-            // Verified event sequence: a cache HIT fires 'loading language
-            // traineddata' (progress 0) then 'loading language traineddata
-            // (from cache)' almost immediately after - so on a cache hit
-            // this "Downloading" text gets overwritten within a tick and
-            // is never actually visible. On a genuine cold download, the
-            // "(from cache)" event never fires at all, so this stays
-            // shown for the real duration of the fetch - which is exactly
-            // the one case where it should.
-            if (m.status === 'loading language traineddata') setSpinner('Downloading model (first time only)…');
-            else if (m.status === 'loading language traineddata (from cache)') setSpinner('Reading…');
-          }
-        });
-        result = gradeOne(text.trim().replace(/\n/g, ' '), i);
-        if (result !== null) break;   // got a parseable number, stop trying frames
+      if (result === null && useTess) {
+        for (const frame of frames) {
+          if (gradingCancelled) { setStatus('Cancelled'); return false; }
+          gradingLabel.textContent = `Reading P${PROBLEMS[i].num}… (OCR)`;
+          if (result !== null) break;
+          const dataURL = cropRegion(frame, answerRegs[i]);
+          const { data: { text } } = await Tesseract.recognize(dataURL, 'eng', {
+            ...TESS_OPTIONS,
+            tessedit_char_whitelist: '0123456789./,= -',
+            logger: m => {
+              if (m.status === 'loading language traineddata') gradingLabel.textContent = 'Downloading model (first time)…';
+              else if (m.status === 'loading language traineddata (from cache)') gradingLabel.textContent = `Reading P${PROBLEMS[i].num}… (OCR)`;
+            }
+          });
+          const t = text.trim().replace(/\n/g, ' ');
+          if (!rawText) rawText = t;
+          result = gradeOne(t, i);
+          if (result !== null) { lastModels[i] = 'tesseract'; break; }
+        }
       }
+
+      lastReads[i] = rawText;
       scores[i] = result;
       renderChip(i);
     }
 
     renderTotal();
     const goodCount = scores.filter(s => s !== null).length;
-    if (goodCount >= GOOD_READ_MIN) playChime();
+    if (goodCount >= GOOD_READ_MIN) {
+      playChime();
+      pushHistory();
+    }
     document.getElementById('last-ocr').textContent =
       `Last read: ${new Date().toLocaleTimeString()} (${goodCount}/5 read)`;
     return true;
   } catch(e) {
     console.error('recognizeFrames failed:', e);
     setError('OCR error: ' + describeError(e));
-    // Any chip left showing the "…" scanning state (the box that was
-    // mid-read when this threw, plus everything after it) would otherwise
-    // stay stuck forever since renderChip(i) never ran for it — reset
-    // those specifically back to their last known score instead.
     for (let i = 0; i < 5; i++) renderChip(i);
     return false;
   }
@@ -875,22 +924,79 @@ function gradeOne(text, i) {
 }
 
 // ─────────────────────────────────────────────
+//  History
+// ─────────────────────────────────────────────
+function pushHistory() {
+  sheetCount++;
+  document.getElementById('sheet-counter').textContent = `Sheet #${sheetCount}`;
+  const entry = {
+    num:    sheetCount,
+    scores: [...scores],
+    models: [...lastModels],
+    reads:  [...lastReads],
+    sum:    scores.filter(s=>s===1).length,
+  };
+  history.push(entry);
+  renderHistory();
+}
+
+function renderHistory() {
+  historyBar.innerHTML = '';
+  // Show newest first
+  for (let k = history.length - 1; k >= 0; k--) {
+    const e = history[k];
+    const card = document.createElement('div');
+    const cls = e.sum === 5 ? 'hc-5' : e.sum === 4 ? 'hc-4' : e.sum === 3 ? 'hc-3' : 'hc-low';
+    card.className = `hist-card ${cls}`;
+    // Build dot string: ● for correct, ○ for wrong/unknown
+    const dots = e.scores.map(s => s===1 ? '●' : s===0 ? '○' : '·').join('');
+    card.innerHTML = `<span class="hc-num">#${e.num}</span><span class="hc-score">${e.sum}/5</span><span class="hc-detail">${dots}</span>`;
+    historyBar.appendChild(card);
+  }
+  // Scroll to the left (newest)
+  historyBar.scrollLeft = 0;
+}
+
+// ─────────────────────────────────────────────
 //  UI helpers
 // ─────────────────────────────────────────────
 function setStatus(msg) { statusBadge.textContent = msg; }
-function setSpinner(msg) { document.getElementById('spinner-label').textContent = msg; }
 
 function setChipScan(i) {
   const c = document.getElementById(`chip-${i}`);
   c.className = 'chip-val v-scan'; c.textContent = '…';
+  document.getElementById(`model-${i}`).textContent = '';
+  document.getElementById(`model-${i}`).className = 'chip-model';
 }
 
 function renderChip(i) {
   const c = document.getElementById(`chip-${i}`);
   const s = scores[i];
-  if (s===1)         { c.className='chip-val v-ok';      c.textContent='1'; }
-  else if (s===0)    { c.className='chip-val v-fail';     c.textContent='0'; }
-  else               { c.className='chip-val v-unknown';  c.textContent='?'; }
+  let cls = '';
+  if (s===1)      cls = 'chip-val v-ok';
+  else if (s===0) cls = 'chip-val v-fail';
+  else            cls = 'chip-val v-unknown';
+  if (manuals[i]) cls += ' v-manual';
+  c.className = cls;
+  c.textContent = s===1 ? '1' : s===0 ? '0' : '?';
+
+  // Raw read text
+  const readEl = document.getElementById(`read-${i}`);
+  readEl.textContent = lastReads[i] || '';
+  readEl.title = lastReads[i] || '';
+
+  // Model badge
+  const modelEl = document.getElementById(`model-${i}`);
+  if (lastModels[i] === 'ai') {
+    modelEl.textContent = 'AI';
+    modelEl.className = 'chip-model model-ai';
+  } else if (lastModels[i] === 'tesseract') {
+    modelEl.textContent = 'OCR';
+    modelEl.className = 'chip-model model-ocr';
+  } else {
+    modelEl.textContent = '';
+    modelEl.className = 'chip-model';
+  }
 }
 
 function renderTotal() {
