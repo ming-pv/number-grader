@@ -94,6 +94,16 @@
     #capture-btn:active { transform: translateX(-50%) scale(0.9); }
     #capture-btn:disabled { opacity: 0.5; cursor: default; }
 
+    /* ── Camera toggle (stop/start) ── */
+    #cam-toggle-btn {
+      position: absolute; bottom: 22px; left: calc(50% + 46px); z-index: 10;
+      width: 44px; height: 44px; border-radius: 50%;
+      background: rgba(0,0,0,0.55); border: 2px solid rgba(255,255,255,0.25);
+      font-size: 1.1rem; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #cam-toggle-btn:active { opacity: 0.7; }
+
     .spinner-ring {
       width: 38px; height: 38px; border: 4px solid rgba(255,255,255,0.15);
       border-top-color: #60a5fa; border-radius: 50%;
@@ -257,6 +267,7 @@
       </div>
     </div>
     <button id="capture-btn" title="Capture now">📸</button>
+    <button id="cam-toggle-btn" title="Stop camera">⏹</button>
   </div>
   <!-- error / fallback -->
   <div id="cam-error">
@@ -580,6 +591,22 @@ function playChime() {
 // ─────────────────────────────────────────────
 //  Camera
 // ─────────────────────────────────────────────
+const camToggleBtn = document.getElementById('cam-toggle-btn');
+function syncCamToggle(running) {
+  camToggleBtn.textContent = running ? '⏹' : '▶';
+  camToggleBtn.title       = running ? 'Stop camera' : 'Start camera';
+}
+function stopCamera() {
+  stopLoop();
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  video.srcObject = null;
+  syncCamToggle(false);
+  setStatus('Camera stopped');
+}
+camToggleBtn.addEventListener('click', () => {
+  if (stream) stopCamera(); else startCamera();
+});
+
 async function startCamera() {
   stopLoop();
   try {
@@ -592,6 +619,7 @@ async function startCamera() {
     video.style.display = 'block';
     document.getElementById('cam-error').style.display = 'none';
     sizeSquareFrame();
+    syncCamToggle(true);
     setStatus('Align sheet to the guide, hold still…');
     startLoop();
   } catch(err) {
@@ -1123,7 +1151,9 @@ function renderChip(i) {
   // Model badge in the label row
   const lbl = document.getElementById(`lbl-${i}`);
   if (lastModels[i] === 'ai') {
-    lbl.innerHTML = `P${PROBLEMS[i].num} <span class="chip-model model-ai">AI</span>`;
+    const fullModel = getAiModel();
+    const shortName = (fullModel.split('/').pop() || fullModel).slice(0, 10).toUpperCase();
+    lbl.innerHTML = `P${PROBLEMS[i].num} <span class="chip-model model-ai" title="${fullModel}">${shortName}</span>`;
   } else if (lastModels[i] === 'tesseract') {
     lbl.innerHTML = `P${PROBLEMS[i].num} <span class="chip-model model-ocr">OCR</span>`;
   } else {
