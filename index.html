@@ -153,7 +153,7 @@
       flex: 1; max-width: 70px; display: flex; flex-direction: column;
       align-items: center; gap: 2px;
     }
-    .chip-lbl { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+    .chip-lbl { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); display: flex; align-items: center; gap: 3px; }
     .chip-val {
       width: 100%; text-align: center; font-size: 1.45rem; font-weight: 800; line-height: 1;
       border-radius: 8px; padding: 6px 4px;
@@ -172,11 +172,11 @@
     .chip-exp  { font-size: 0.56rem; color: #64748b; }
     .chip-read { font-size: 0.55rem; color: #475569; max-width: 66px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; min-height: 0.7rem; }
     .chip-model {
-      font-size: 0.52rem; padding: 1px 5px; border-radius: 4px;
-      font-weight: 700; letter-spacing: 0.04em;
+      font-size: 0.5rem; padding: 1px 4px; border-radius: 3px;
+      font-weight: 700; letter-spacing: 0.04em; line-height: 1.4;
     }
-    .model-ai  { background: #1e3a5f; color: #60a5fa; }
-    .model-ocr { background: #1e293b; color: #64748b; }
+    .model-ai  { background: #1d4ed8; color: #fff; }
+    .model-ocr { background: #475569; color: #fff; }
 
     .total-row { display: flex; align-items: center; justify-content: center; gap: 8px; }
     #total-val {
@@ -441,11 +441,10 @@ PROBLEMS.forEach((p, i) => {
   const chip = document.createElement('div');
   chip.className = 'chip';
   chip.innerHTML = `
-    <span class="chip-lbl">P${p.num}</span>
+    <span class="chip-lbl" id="lbl-${i}">P${p.num}</span>
     <div class="chip-val v-idle" id="chip-${i}">—</div>
     <span class="chip-exp">${p.label}</span>
     <span class="chip-read" id="read-${i}"></span>
-    <span class="chip-model" id="model-${i}"></span>
   `;
   chipsEl.appendChild(chip);
   document.getElementById(`chip-${i}`).addEventListener('click', () => {
@@ -568,8 +567,7 @@ function resetScores() {
     const c = document.getElementById(`chip-${i}`);
     c.className = 'chip-val v-idle'; c.textContent = '—';
     document.getElementById(`read-${i}`).textContent = '';
-    document.getElementById(`model-${i}`).textContent = '';
-    document.getElementById(`model-${i}`).className = 'chip-model';
+    document.getElementById(`lbl-${i}`).innerHTML = `P${PROBLEMS[i].num}`;
   }
   document.getElementById('total-val').textContent = '— / 5';
   document.getElementById('last-ocr').textContent = '';
@@ -992,8 +990,7 @@ function setStatus(msg) { statusBadge.textContent = msg; }
 function setChipScan(i) {
   const c = document.getElementById(`chip-${i}`);
   c.className = 'chip-val v-scan'; c.textContent = '…';
-  document.getElementById(`model-${i}`).textContent = '';
-  document.getElementById(`model-${i}`).className = 'chip-model';
+  document.getElementById(`lbl-${i}`).innerHTML = `P${PROBLEMS[i].num}`;
 }
 
 function renderChip(i) {
@@ -1012,17 +1009,14 @@ function renderChip(i) {
   readEl.textContent = lastReads[i] || '';
   readEl.title = lastReads[i] || '';
 
-  // Model badge
-  const modelEl = document.getElementById(`model-${i}`);
+  // Model badge in the label row
+  const lbl = document.getElementById(`lbl-${i}`);
   if (lastModels[i] === 'ai') {
-    modelEl.textContent = 'AI';
-    modelEl.className = 'chip-model model-ai';
+    lbl.innerHTML = `P${PROBLEMS[i].num} <span class="chip-model model-ai">AI</span>`;
   } else if (lastModels[i] === 'tesseract') {
-    modelEl.textContent = 'OCR';
-    modelEl.className = 'chip-model model-ocr';
+    lbl.innerHTML = `P${PROBLEMS[i].num} <span class="chip-model model-ocr">OCR</span>`;
   } else {
-    modelEl.textContent = '';
-    modelEl.className = 'chip-model';
+    lbl.innerHTML = `P${PROBLEMS[i].num}`;
   }
 }
 
