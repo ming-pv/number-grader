@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>POSN Grader — Problems 11–15</title>
+  <title>Grader</title>
   <style>
     :root {
       --primary: #1565c0;
@@ -243,7 +243,7 @@
 
 <header>
   <div class="hdr-left">
-    <h1>📝 POSN Grader P11–15</h1>
+    <h1>Grader</h1>
     <span id="sheet-counter">Sheet #0</span>
     <span style="font-size:0.6rem;opacity:0.5;font-family:monospace">ab7da17</span>
   </div>
@@ -981,8 +981,8 @@ const TESS_OPTIONS = {
 async function recognizeFrames(frames) {
   try {
     const answerRegs = guideAnswerBoxes(frames[0].width, frames[0].height);
-    const useAi = lastForceModel === 'ai' || (!lastForceModel && isAiConfigured());
-    const useTess = lastForceModel === 'tesseract' || !lastForceModel;
+    const useAi   = lastForceModel === 'ai'        || (!lastForceModel && isAiConfigured());
+    const useTess = lastForceModel === 'tesseract' || (!lastForceModel && !isAiConfigured());
 
     for (let i = 0; i < 5; i++) {
       if (gradingCancelled) {
