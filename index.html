@@ -723,6 +723,7 @@ async function runRecognition(frames) {
   ocrRunning = true;
   captureBtn.disabled = true;
   gradingCancelled = false;
+  video.pause();   // freeze the visible frame during grading
   gradingOverlay.style.display = 'flex';
   gradingLabel.textContent = 'Grading…';
 
@@ -741,6 +742,7 @@ async function runRecognition(frames) {
     ocrRunning = false;
     captureBtn.disabled = false;
     gradingOverlay.style.display = 'none';
+    video.play().catch(() => {});   // resume live feed
     if (ok) setStatus('Done — point at next sheet');
     updateRetryLabel();
   }
