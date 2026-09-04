@@ -245,6 +245,7 @@
   <div class="hdr-left">
     <h1>📝 POSN Grader P11–15</h1>
     <span id="sheet-counter">Sheet #0</span>
+    <span style="font-size:0.6rem;opacity:0.5;font-family:monospace">51c9646</span>
   </div>
   <div class="hdr-btns">
     <button class="hdr-btn" id="ai-btn">🤖 AI</button>
@@ -994,8 +995,9 @@ async function recognizeFrames(frames) {
       let result = null;
       let rawText = '';
 
+      let aiNote = null;  // describes why AI didn't produce a grade (shown in chip if OCR takes over)
       if (useAi) {
-        lastModels[i] = 'ai';   // mark AI as tried; overwritten to 'tesseract' if we fall through
+        lastModels[i] = 'ai';
         try {
           gradingLabel.textContent = `Reading P${PROBLEMS[i].num}… (AI)`;
           const box = answerRegs[i];
@@ -1005,12 +1007,15 @@ async function recognizeFrames(frames) {
           if (text) {
             rawText = text;
             result = gradeOne(text, i);
+            if (result === null) aiNote = 'AI:"' + text.slice(0, 18) + '"';
+          } else {
+            aiNote = 'AI:empty';
           }
         } catch(e) {
           if (gradingCancelled) { setStatus('Cancelled'); return false; }
           const msg = describeError(e);
           console.warn(`AI failed P${PROBLEMS[i].num}:`, msg);
-          lastReads[i] = 'AI err: ' + msg.slice(0, 40);
+          aiNote = 'AI err:' + msg.slice(0, 30);
         }
       }
 
@@ -1040,7 +1045,7 @@ async function recognizeFrames(frames) {
         }
       }
 
-      lastReads[i] = rawText;
+      lastReads[i] = (aiNote && lastModels[i] === 'tesseract') ? aiNote + ' ' + rawText : rawText;
       scores[i] = result;
       renderChip(i);
     }
