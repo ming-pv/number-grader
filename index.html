@@ -1008,7 +1008,9 @@ async function recognizeFrames(frames) {
           }
         } catch(e) {
           if (gradingCancelled) { setStatus('Cancelled'); return false; }
-          console.warn(`AI failed P${PROBLEMS[i].num}:`, describeError(e));
+          const msg = describeError(e);
+          console.warn(`AI failed P${PROBLEMS[i].num}:`, msg);
+          lastReads[i] = 'AI err: ' + msg.slice(0, 40);
         }
       }
 
