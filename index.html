@@ -277,9 +277,30 @@ const GOOD_READ_MIN = 4;
 const AI_SERVER_KEY = 'aiServerUrl';
 const AI_MODEL      = 'qwen2.5vl:3b';
 const AI_TIMEOUT_MS = 45000;
-const AI_PROMPT = 'Read the handwritten number or fraction in this image. '
-  + 'There may be extra text or units next to it - ignore that. Reply with '
-  + 'ONLY the number or fraction (e.g. "36" or "9/20"), nothing else.';
+// Per-problem prompts give the model context about what kind of answer to expect,
+// which significantly reduces misreads on ambiguous handwriting.
+const AI_PROMPTS = [
+  // P11: answer 36
+  'This is a student handwritten answer to a math problem. The answer is a whole number (expected around 36). '
+  + 'There may be Thai text or units next to the number — ignore them. '
+  + 'Reply with ONLY the digits, nothing else. Example: "36"',
+  // P12: answer 9/20 = 0.45 — fraction, decimal, or percent
+  'This is a student handwritten answer to a math problem. The answer may be a fraction (like 9/20), '
+  + 'a decimal (like 0.45), or a percentage (like 45%). There may be Thai text next to it — ignore it. '
+  + 'Reply with ONLY the number or fraction as written, nothing else. Examples: "9/20", "0.45", "45%"',
+  // P13: answer 48000 — large number, may have comma
+  'This is a student handwritten answer to a math problem. The answer is a large whole number (expected around 48000). '
+  + 'It may be written with a comma separator (like 48,000). There may be Thai text next to it — ignore it. '
+  + 'Reply with ONLY the digits (and comma if present), nothing else. Example: "48000" or "48,000"',
+  // P14: answer 24
+  'This is a student handwritten answer to a math problem. The answer is a whole number (expected around 24). '
+  + 'There may be Thai text or units next to the number — ignore them. '
+  + 'Reply with ONLY the digits, nothing else. Example: "24"',
+  // P15: answer 480
+  'This is a student handwritten answer to a math problem. The answer is a whole number (expected around 480). '
+  + 'There may be Thai text or units next to the number — ignore them. '
+  + 'Reply with ONLY the digits, nothing else. Example: "480"',
+];
 
 function getAiServerUrl() {
   return (localStorage.getItem(AI_SERVER_KEY) || '').trim().replace(/\/$/, '');
@@ -305,7 +326,7 @@ function squarePad(source, size) {
 // currentAiController is aborted when the user hits Cancel.
 let currentAiController = null;
 
-async function recognizeWithAI(cropCanvas) {
+async function recognizeWithAI(cropCanvas, problemIdx) {
   const base = getAiServerUrl();
   if (!base) return null;
   const sq = squarePad(cropCanvas);
@@ -319,7 +340,7 @@ async function recognizeWithAI(cropCanvas) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: AI_MODEL,
-        prompt: AI_PROMPT,
+        prompt: AI_PROMPTS[problemIdx] || AI_PROMPTS[0],
         images: [b64],
         stream: false,
         options: { temperature: 0 },
@@ -628,6 +649,10 @@ function stopLoop() { if (loopTimer) { clearTimeout(loopTimer); loopTimer = null
 async function loop() {
   if (!stream || !video.videoWidth) { loopTimer = setTimeout(loop, LOOP_MS); return; }
 
+  // Skip all frame processing while grading — the overlay is showing and the
+  // video feed is still live behind it. No need to burn CPU on diff/canvas.
+  if (ocrRunning || capturing) { loopTimer = setTimeout(loop, LOOP_MS); return; }
+
   const fw = video.videoWidth, fh = video.videoHeight;
   const fc = tmpCanvas(fw, fh);
   fc.getContext('2d').drawImage(video, 0, 0, fw, fh);
@@ -637,28 +662,25 @@ async function loop() {
   const diff = prevSmall ? frameDiff(small, prevSmall) : 999;
   prevSmall = small;
 
-  // Don't update stability or status while grading — the overlay is showing
-  if (!ocrRunning && !capturing) {
-    if (diff < STABLE_THRESH) {
-      stableCount = Math.min(stableCount + 1, STABLE_FRAMES + 5);
-    } else {
-      stableCount = 0;
-    }
+  if (diff < STABLE_THRESH) {
+    stableCount = Math.min(stableCount + 1, STABLE_FRAMES + 5);
+  } else {
+    stableCount = 0;
+  }
 
-    clearOverlay();
-    drawGuide(false);
+  clearOverlay();
+  drawGuide(false);
 
-    const now = Date.now();
-    const stable = stableCount >= STABLE_FRAMES;
-    const cooldownOk = now - lastOcrTime > OCR_COOLDOWN;
+  const now = Date.now();
+  const stable = stableCount >= STABLE_FRAMES;
+  const cooldownOk = now - lastOcrTime > OCR_COOLDOWN;
 
-    if (stable && cooldownOk) {
-      lastOcrTime = Date.now();
-      stableCount = 0;
-      captureAndRecognize();
-    } else if (!stable && !hasError) {
-      setStatus(`Align sheet to the guide, hold still… (${stableCount}/${STABLE_FRAMES})`);
-    }
+  if (stable && cooldownOk) {
+    lastOcrTime = Date.now();
+    stableCount = 0;
+    captureAndRecognize();
+  } else if (!stable && !hasError) {
+    setStatus(`Align sheet to the guide, hold still… (${stableCount}/${STABLE_FRAMES})`);
   }
 
   loopTimer = setTimeout(loop, LOOP_MS);
@@ -836,16 +858,16 @@ async function recognizeFrames(frames) {
       let rawText = '';
 
       if (useAi) {
+        lastModels[i] = 'ai';   // mark AI as tried; overwritten to 'tesseract' if we fall through
         try {
           gradingLabel.textContent = `Reading P${PROBLEMS[i].num}… (AI)`;
           const box = answerRegs[i];
           const crop = tmpCanvas(box.w, box.h);
           crop.getContext('2d').drawImage(frames[0], box.x, box.y, box.w, box.h, 0, 0, box.w, box.h);
-          const text = await recognizeWithAI(crop);
+          const text = await recognizeWithAI(crop, i);
           if (text) {
             rawText = text;
             result = gradeOne(text, i);
-            lastModels[i] = 'ai';
           }
         } catch(e) {
           if (gradingCancelled) { setStatus('Cancelled'); return false; }
@@ -853,7 +875,11 @@ async function recognizeFrames(frames) {
         }
       }
 
+      // P12 whitelist includes % for percentage answers; others are digits-only
+      const whitelist = i === 1 ? '0123456789./,%=' : '0123456789./,= -';
+
       if (result === null && useTess) {
+        lastModels[i] = 'tesseract';   // AI didn't get a result; Tesseract is running
         for (const frame of frames) {
           if (gradingCancelled) { setStatus('Cancelled'); return false; }
           gradingLabel.textContent = `Reading P${PROBLEMS[i].num}… (OCR)`;
@@ -861,7 +887,8 @@ async function recognizeFrames(frames) {
           const dataURL = cropRegion(frame, answerRegs[i]);
           const { data: { text } } = await Tesseract.recognize(dataURL, 'eng', {
             ...TESS_OPTIONS,
-            tessedit_char_whitelist: '0123456789./,= -',
+            tessedit_char_whitelist: whitelist,
+            tessedit_pageseg_mode: '7',   // single text line — much better for isolated numbers
             logger: m => {
               if (m.status === 'loading language traineddata') gradingLabel.textContent = 'Downloading model (first time)…';
               else if (m.status === 'loading language traineddata (from cache)') gradingLabel.textContent = `Reading P${PROBLEMS[i].num}… (OCR)`;
@@ -870,7 +897,7 @@ async function recognizeFrames(frames) {
           const t = text.trim().replace(/\n/g, ' ');
           if (!rawText) rawText = t;
           result = gradeOne(t, i);
-          if (result !== null) { lastModels[i] = 'tesseract'; break; }
+          if (result !== null) break;
         }
       }
 
